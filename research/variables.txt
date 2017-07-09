@@ -1,0 +1,73 @@
+## Variables
+
+All variables have:
+
+- a type
+- storage class
+- mutability
+
+### Storage classes
+
+- value: the data is stored at the declaration site, i.e. (1) in the function's scope, on the stack or, (2) within a struct
+- heap reference: at the declaration site only a pointer is stored. The actual data is stored on the heap.
+- (weak) reference:  at the declaration site only a pointer is stored. The actual data is stored elsewhere and have a life span guaranteed to be longer than of the reference.
+- shared/weak: at the declaration site a reference-counted shared pointer is stored. The actual data is stored on the heap.
+
+In all cases, the name of the variable, the symbol refers to the actual data:
+
+    var x :: int = 1
+    var y :: heap int = 2
+    var z :: shared int = 3
+
+    var z :: int = x + y + z
+
+### Mutability
+
+All variables are immutable by default.
+
+    let a = 4
+
+Mutable variables declared by `var`:
+
+    var b = 5
+
+Shared/weak variables are always mutable. The heap or value fields of a struct inherit the mutability of the struct. For the sake of simplicity, the mutability of the pointer and target parts of the heap variables have always indentical mutability:
+
+    let x = heap 1
+    var y = heap 2
+
+    x = 2 // ERROR
+    x = heap 2 // ERROR
+    y = 1 // OK
+    y = heap 1 // OK
+
+
+### Assignment
+
+`a = b` is always either bitwise copy or moving of heap references. All copiable types are expected to bitwise-copyable.
+`a = take b` is always moving of heap references
+`a = share b` assumes both `a` and `b` are shared or weak pointers.
+`a = clone b` is cloning of non-copyable but clonable variables
+`a = forward b` uses moving or sharing of both a and b are heap or shared/weak references. If `a` is being created then it has the same value/heap/shared/weak storage class as the `b`
+
+We need something like `let a = heap clone b` or `let a = clone heap b` if we want to clone something to the heap.
+Or let a :: heap = clone b
+
+### Function call
+
+`f(a)` semantically takes all types as immutable references. This can be optimized for small, copyable types (Int) as bitwise copy.
+Since reference variables always mean their targets, in these cases an immutable reference is taken to the target.
+
+`f(var a)` takes mutable references. On the call site `var` should also be specified.
+
+`f(share a)` `f(weak a)` accepts only shared or weak references and `a` is taken as shared/weak reference.
+`f(take a)` accepts only heap reference with ownership and taken as such.
+`f(forward a)` inherits the mutability and the heap/shared/weak-ness of the callsite
+
+
+### Heap -> shared
+
+We should be able to transform a heap reference to shared.
+
+    var b = heap 1
+    var a = share b
