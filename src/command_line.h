@@ -10,6 +10,6 @@ struct CommandLine
     string out;
 };
 
-using ize = char const * const;
-CommandLine parse_command_line(int argc,  const char * const argv[]);
+using ize = char const* const;
+CommandLine parse_command_line(int argc, const char* const argv[]);
 }
