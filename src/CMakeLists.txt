@@ -5,7 +5,8 @@ find_package(fmt REQUIRED)
 file(GLOB headers *.h)
 add_executable(maybe
     ${headers}
-    compiler.cpp lexer.cpp command_line.cpp log.cpp)
+    compiler.cpp lexer.cpp command_line.cpp log.cpp
+    compiler_main.cpp)
 
 target_link_libraries(maybe PRIVATE
     nowide::nowide-static
