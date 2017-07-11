@@ -87,9 +87,11 @@ gitit "https://github.com/llvm-mirror/llvm.git" "llvm"
 gitit "https://github.com/tamaskenez/nowide-standalone.git" "nowide-standalone"
 gitit "https://github.com/fmtlib/fmt.git" "fmt"
 gitit "https://github.com/tamaskenez/microlib.git" "microlib"
+gitit "https://github.com/mpark/variant.git" "variant"
 
 # cmakeit "llvm"
 cmakeit "nowide-standalone"
 cmakeit "fmt"
+cmakeit "variant"
 cmakeit "microlib" --try-use-ide
 

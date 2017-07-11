@@ -1,6 +1,6 @@
+#include "std.h"
+
 #include "nowide/args.hpp"
-#include "nowide/cstdio.hpp"
-#include "nowide/cstdlib.hpp"
 
 #include "fmt/format.h"
 #include "ul/ul.h"
