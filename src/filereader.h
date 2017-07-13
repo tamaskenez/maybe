@@ -10,6 +10,7 @@ class FileReader
 public:
     static Either<system_error, FileReader> new_(string filename);
 
+    // fow now, only move ctor allowed (add move assignment if needed)
     FileReader(const FileReader&) = delete;
     FileReader(FileReader&& x) : f(x.f), filename(move(x.filename))
     {
