@@ -6,7 +6,7 @@ namespace maybe {
 
 struct Globals
 {
-    LogLevel log_level = LogLevel::info;
+    LogLevel log_level = LogLevel::debug;
 };
 
 extern Globals globals;

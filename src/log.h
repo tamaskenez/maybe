@@ -31,7 +31,7 @@ template <typename... Args>
 }
 
 #define LOG_DEBUG(format, ...)                                             \
-    (LogLevel::debug >= globals.log_level ? log_debug(format, __VA_ARGS__) \
+    (LogLevel::debug <= globals.log_level ? log_debug(format, __VA_ARGS__) \
                                           : (void)0)
 
 template <typename... Args>

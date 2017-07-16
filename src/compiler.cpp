@@ -7,7 +7,7 @@ namespace maybe {
 
 void compile_line(cspan filename, int line_num, cspan line)
 {
-    log_debug("[{}:{}] <<{}>>", filename, line_num, line);
+    LOG_DEBUG("[{}:{}] <<{}>>", filename, line_num, line);
 }
 
 void compile_file(string_par f)
