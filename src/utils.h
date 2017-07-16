@@ -3,6 +3,7 @@
 #include "std.h"
 
 namespace maybe {
+
 template <class X, class Y>
 using Either = variant<X, Y>;
 

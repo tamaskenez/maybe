@@ -37,7 +37,7 @@ template <typename... Args>
 template <typename... Args>
 void log_debug(const char* format, const Args&... args)
 {
-    fmt::print(stderr, "{}: debug: {}", c_program_name,
+    fmt::print(stderr, "{}: debug: {}\n", c_program_name,
                fmt::format(format, args...));
 }
 }

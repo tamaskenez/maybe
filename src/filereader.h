@@ -2,6 +2,7 @@
 
 #include "std.h"
 #include "utils.h"
+#include "consts.h"
 
 namespace maybe {
 
@@ -21,10 +22,16 @@ public:
 
     ~FileReader();
 
+    Maybe<cspan> read_next_line();  // false if no more lines
+    int line_num() const { return line_num_; }
+
 private:
-    FileReader(FILE* f, string filename) : f(f), filename(move(filename)) {}
+    FileReader(FILE* f, string filename);
 
     FILE* f = nullptr;
     string filename;
+    int line_num_ = 0;
+    vector<char> read_buf;
+    int next_unprocessed_idx = 0;
 };
 }

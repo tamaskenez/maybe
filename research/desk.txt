@@ -1,0 +1,21 @@
+"'
+=+-/*
+() [] {} <>
+,.:;
+_!#$%&?@\^`|~
+
+print "qwewqe"
+
+struct Slice T {
+    
+struct Slice T
+    address : intptr
+    cnt : int
+
+self @ x : Slice T -> T
+
+print :: Slice byte -> {}
+print x =
+    Cfun.fwrite(address, #x, 1, stdout)
+
+print :: [byte] -> {}
