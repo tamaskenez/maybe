@@ -19,3 +19,4 @@ print x =
     Cfun.fwrite(address, #x, 1, stdout)
 
 print :: [byte] -> {}
+
