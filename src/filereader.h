@@ -13,25 +13,33 @@ public:
 
     // fow now, only move ctor allowed (add move assignment if needed)
     FileReader(const FileReader&) = delete;
-    FileReader(FileReader&& x) : f(x.f), filename(move(x.filename))
+    FileReader(FileReader&& x)
+        : f(x.f),
+          filename(move(x.filename)),
+          read_buf(move(x.read_buf)),
+          read_buf_size(x.read_buf_size)
     {
         x.f = nullptr;
+        x.read_buf_size = 0;
     }
     void operator=(const FileReader&) = delete;
     void operator=(FileReader&&) = delete;
 
     ~FileReader();
 
-    Maybe<cspan> read_next_line();  // false if no more lines
-    int line_num() const { return line_num_; }
+    // keep the last `keep_tail_bytes` from the end of the previous buffer
+    // and read `read_bytes` new bytes
+    // may return smaller buffer if eof or error
+    cspan read(int keep_tail_bytes, int read_bytes);
+    bool is_eof() const;
 
 private:
     FileReader(FILE* f, string filename);
 
     FILE* f = nullptr;
     string filename;
-    int line_num_ = 0;
-    vector<char> read_buf;
-    int next_unprocessed_idx = 0;
+    using ReadBuf = array<char, c_filereader_read_buf_capacity>;
+    unique_ptr<ReadBuf> read_buf;
+    int read_buf_size = 0;  // actual characters
 };
 }

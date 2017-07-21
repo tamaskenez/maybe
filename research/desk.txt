@@ -20,3 +20,29 @@ print x =
 
 print :: [byte] -> {}
 
+let a = [1, 2, 3] // const ref to static data
+var a = [1, 2, 3] // copy into array<3> on stack
+let a = &[1, 2, 3] // same as without &
+var a = &[1, 2, 3] // error, temp value goes out of scope after expression + mutable ref to const data
+let a = &&[1, 2, 3] // const unique_ptr to const static data
+var a = &&[1, 2, 3] // mutable unique_ptr to mutable data
+a[2] = 4 // new value instead of 3
+
+a = [2, 3, 4] // copy or realloc? must be copy
+b = &&[1, 2, 3]
+
+c = &a // weak ref to a's target (c@0 == 2)
+a = b // what? copy or move?, what if c holds weak ref?
+//one solutions: it is movable, so no default copy. Since move is obstructed
+//by c refencing a (another obstruction would be reading from b later)
+//so it is an error
+//copy must be explicit:
+a = copy b
+//The copy fuction should return some CopyOnly wrapper reference so the assignment
+//function will opt in to copy
+(=) = fn T (CopyOnly T) -> 
+
+str a
+str b
+
+a = b //what?
