@@ -98,10 +98,9 @@ gitit "https://github.com/tamaskenez/microlib.git" "microlib"
 gitit "https://github.com/mpark/variant.git" "variant"
 gitit "https://github.com/tamaskenez/Optional.git" "Optional"
 
-# cmakeit "llvm"
+cmakeit "llvm"
 cmakeit "nowide-standalone"
 cmakeit "fmt"
 cmakeit "variant"
 cmakeit "Optional"
 cmakeit "microlib" --try-use-ide
-

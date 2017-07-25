@@ -37,6 +37,7 @@ using std::unique_ptr;
 using mpark::variant;
 using mpark::holds_alternative;
 using mpark::get;
+using mpark::monostate;
 
 template <class T>
 using Maybe = std::experimental::optional<T>;

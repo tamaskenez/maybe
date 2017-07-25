@@ -14,36 +14,23 @@ void compile_file(string_par filename)
         log_fatal(left(lr), "can't open file '{}'", filename.c_str());
     }
     auto fr = move(right(lr));
-    cspan readahead_buf;
-    bool eof = false;
     Tokenizer tokenizer;
     for (;;) {
-        if (!eof && readahead_buf.size() < Tokenizer::c_min_readahead) {
-            readahead_buf =
-                fr.read(readahead_buf.size(),
-                        c_filereader_read_buf_capacity - readahead_buf.size());
-            if (readahead_buf.size() < c_filereader_read_buf_capacity) {
-                if (fr.is_eof())
-                    eof = true;
-                else
-                    log_fatal("can't read file '{}'", filename.c_str());
-            }
+        auto or_eof_flag = tokenizer.extract_next_token(fr);
+        if (UL_UNLIKELY(is_left(or_eof_flag))) {
+            auto& e = left(or_eof_flag);
+            fmt::print("{}:{}:{}: error: {}\n", filename.c_str(), e.line_num,
+                       e.col, e.msg);
+            exit(EXIT_FAILURE);
         }
-        CHECK(!readahead_buf.empty());
-        auto or_consumed = tokenizer.extract_next_token(readahead_buf);
-        if (is_left(or_consumed)) {
-            auto& e = left(or_consumed);
-            log_fatal("{} {} {} {}", filename.c_str(), e.msg, e.line_num,
-                      e.col);
-        }
-        auto consumed = right(or_consumed);
-        CHECK(0 < consumed && consumed <= readahead_buf.size());
-        readahead_buf = cspan{readahead_buf.begin() + consumed,
-                              readahead_buf.size() - consumed};
-        if (readahead_buf.empty())
+        auto eof_flag = right(or_eof_flag);
+        if (UL_UNLIKELY(eof_flag == EofFlag::eof)) {
+            if (!fr.is_eof())
+                log_fatal("can't read file '{}'", filename.c_str());
             break;
+        }
     }
-    for (auto& t : tokenizer.ref_tokens()) {
+    for (auto& t : tokenizer.tokens) {
 #define MATCH(T)                   \
     if (holds_alternative<T>(t)) { \
         auto& x = get<T>(t);
@@ -57,17 +44,22 @@ void compile_file(string_par filename)
         MATCH(TokenIndent)
         printf("<IND-%d/%d>", x.num_tabs, x.num_spaces);
         ELSE_MATCH(TokenChar)
-        printf("<%c>", x.c);
+        printf("[%c]", x.c);
         ELSE_MATCH(TokenWspace)
         printf("_");
         (void)x;
-        ELSE_MATCH(TokenToken)
+        ELSE_MATCH(TokenIdentifier)
         printf("<%s>", x.s.c_str());
         ELSE_MATCH(TokenEol)
         printf("<EOL>\n");
         (void)x;
+        ELSE_MATCH(TokenUnsigned)
+        fmt::print("#U{}", x.number);
+        ELSE_MATCH(TokenDouble)
+        fmt::print("#D{}", x.number);
         END_MATCH
     }
+    printf("<EOF>\n");
 }
 
 void run_compiler(const CommandLine& cl)

@@ -3,6 +3,8 @@
 #include "std.h"
 #include "utils.h"
 
+#include "filereader.h"
+
 namespace maybe {
 
 struct TokenizerError
@@ -35,68 +37,68 @@ struct TokenEol
 {
 };
 
-struct TokenToken
+struct TokenIdentifier
 {
     int col;
     string s;
 };
 
-using Token =
-    variant<TokenChar, TokenWspace, TokenIndent, TokenEol, TokenToken>;
+struct TokenUnsigned
+{
+    int col, length;
+    uint64_t number;
+};
+
+// TODO should be long double, or introduce another long double token
+struct TokenDouble
+{
+    int col, length;
+    long double number;
+};
+
+using Token = variant<TokenChar,
+                      TokenWspace,
+                      TokenIndent,
+                      TokenEol,
+                      TokenIdentifier,
+                      TokenUnsigned,
+                      TokenDouble>;
+
+enum class EofFlag
+{
+    not_eof,
+    eof
+};
 
 struct Tokenizer
 {
-    // Readahead should be longer than the longest token except for the
-    // following tokens
-    // the state machine is implemented to handle unlimited lengths
-    //- TokenIndent
-    //- TokenStringLiteral
-    //- TokenWspace
-    // also, since comments are whitespace, they don't count
-    static const int c_min_readahead = 32;
+    Either<TokenizerError, EofFlag> extract_next_token(FileReader& fr);
 
-    Either<TokenizerError, int> extract_next_token(cspan buf);
-    vector<Token> ref_tokens() { return tokens; }
+    vector<Token> tokens;
 
 private:
     enum class State
     {
         waiting_for_indent,
-        within_indent,
         within_line
     };
 
-    struct ReadIndentState
-    {
-        int tabs;
-        int spaces;
-    } read_indent_state;
+    Either<TokenizerError, EofFlag> read_indent(FileReader& fr);
+    Either<TokenizerError, EofFlag> read_within_line(FileReader& fr);
+    Either<TokenizerError, EofFlag> read_token_identifier(FileReader& fr,
+                                                          int startcol,
+                                                          string collector);
+    Either<TokenizerError, EofFlag> read_hex_literal(FileReader& fr,
+                                                     int startcol,
+                                                     char x_char);
+    Either<TokenizerError, EofFlag> read_token_number(FileReader& fr,
+                                                      int startcol,
+                                                      char first_char_digit);
+    long double read_fractional(FileReader& fr);
 
-    Either<TokenizerError, int> read_indent(bool waiting_for_indent, cspan buf);
-    Either<TokenizerError, int> read_within_line(cspan buf);
-// find indentation: <TAB>*<SPACE>*
-
-#if 0
-    for (; idx < line.size();) {
-        char c = line[idx];
-        if (iswspace(c)) {
-            int startidx = idx;
-            ++idx;
-            while (idx < line.size() && iswspace(line[idx]))
-                ++idx;
-            tl.tokens.emplace_back(
-                TokenWspace(cspan(line.begin() + startidx, idx - startidx)));
-        } else {
-            tl.tokens.emplace_back(TokenChar(line.begin() + idx));
-            ++idx;
-        }
-    }
-    return &tl;
-}
-#endif
     State state = State::waiting_for_indent;
     int line_num = 0;  // 1-based, first line increases it to 1
-    int col = INT_MIN;
-    vector<Token> tokens;
+    int current_line_start_pos = 0;
+    string strtmp;
 };
 }

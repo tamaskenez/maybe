@@ -22,29 +22,9 @@ FileReader::~FileReader()
     }
 }
 
-cspan FileReader::read(int keep_tail_bytes, int read_bytes)
-{
-    // can't keep more than current chars, can't read more then capacity
-    CHECK(keep_tail_bytes <= read_buf_size &&
-          (keep_tail_bytes + read_bytes <= read_buf->size()));
-
-    // copy tail to begin
-    std::copy(read_buf->end() - keep_tail_bytes, read_buf->end(),
-              read_buf->begin());
-
-    auto read_start_ptr = &(read_buf->at(keep_tail_bytes));
-    auto bytes_read = fread(read_start_ptr, 1, read_bytes, f);
-    read_buf_size = keep_tail_bytes + bytes_read;
-    return cspan{&(*read_buf)[0], (size_t)read_buf_size};
-}
-
-bool FileReader::is_eof() const
-{
-    return feof(f);
-}
-
 FileReader::FileReader(FILE* f, string filename)
-    : f(f), filename(move(filename)), read_buf(new ReadBuf)
+    : read_buf(new ReadBuf), f(f), filename(move(filename))
 {
+    p.next_char_to_read = p.next_char_to_read = &read_buf->front();
 }
 }
