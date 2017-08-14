@@ -3,33 +3,25 @@
 #include "log.h"
 #include "filereader.h"
 #include "tokenizer.h"
+#include "parser.h"
 
 namespace maybe {
 
 void compile_file(string_par filename)
 {
-    // auto filename = ul::make_span(f.c_str());
     auto lr = FileReader::new_(filename.c_str());
     if (is_left(lr)) {
         log_fatal(left(lr), "can't open file '{}'", filename.c_str());
     }
     auto fr = move(right(lr));
     Tokenizer tokenizer;
-    for (;;) {
-        auto or_eof_flag = tokenizer.extract_next_token(fr);
-        if (UL_UNLIKELY(is_left(or_eof_flag))) {
-            auto& e = left(or_eof_flag);
-            fmt::print("{}:{}:{}: error: {}\n", filename.c_str(), e.line_num,
-                       e.col, e.msg);
-            exit(EXIT_FAILURE);
-        }
-        auto eof_flag = right(or_eof_flag);
-        if (UL_UNLIKELY(eof_flag == EofFlag::eof)) {
-            if (!fr.is_eof())
-                log_fatal("can't read file '{}'", filename.c_str());
-            break;
-        }
-    }
+
+    TokenizerAccess ta{&fr, &tokenizer, filename.c_str()};
+
+    Parser parser;
+    parser.parse_toplevel_loop(ta);
+
+#if 0
     for (auto& t : tokenizer.tokens) {
 #define MATCH(T)                   \
     if (holds_alternative<T>(t)) { \
@@ -60,6 +52,7 @@ void compile_file(string_par filename)
         END_MATCH
     }
     printf("<EOF>\n");
+#endif
 }
 
 void run_compiler(const CommandLine& cl)

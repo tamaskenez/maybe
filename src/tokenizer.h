@@ -37,6 +37,10 @@ struct TokenEol
 {
 };
 
+struct TokenEof
+{
+};
+
 struct TokenIdentifier
 {
     int col;
@@ -49,32 +53,60 @@ struct TokenUnsigned
     uint64_t number;
 };
 
-// TODO should be long double, or introduce another long double token
 struct TokenDouble
 {
     int col, length;
     long double number;
 };
 
-using Token = variant<TokenChar,
+using Token = variant<TokenEof,  // first must be a cheap class
+                      TokenEol,
+                      TokenChar,
                       TokenWspace,
                       TokenIndent,
-                      TokenEol,
                       TokenIdentifier,
                       TokenUnsigned,
-                      TokenDouble>;
+                      TokenDouble,
+                      TokenizerError  // error is flattened into Token to avoid
+                                      // diffult-to-handle 2-level variant
+                      >;
 
-enum class EofFlag
+struct TokenFifo
 {
-    not_eof,
-    eof
+    const Token& front()
+    {
+        assert(!empty());
+        return tokens.front();
+    }
+    const Token& at(int ix) const
+    {
+        assert(0 <= ix && ix < size());
+        return tokens[ix];
+    }
+    int size() const { return tokens.size(); }
+    void pop_front()
+    {
+        assert(!empty());
+        tokens.pop_front();
+    }
+    template <class T, class... Args>
+    void emplace_back(Args&&... args)
+    {
+        tokens.emplace_back(in_place_aggr_type<T>, std::forward<Args>(args)...);
+    }
+    bool empty() const { return tokens.empty(); }
+
+private:
+    // TODO replace with a more cache friendly implementation if bottleneck
+    deque<Token> tokens;
 };
 
 struct Tokenizer
 {
-    Either<TokenizerError, EofFlag> extract_next_token(FileReader& fr);
+    void load_at_least(FileReader& fr, int n);
+    void read_next(FileReader& fr);
 
-    vector<Token> tokens;
+    TokenFifo fifo;
 
 private:
     enum class State
@@ -83,17 +115,14 @@ private:
         within_line
     };
 
-    Either<TokenizerError, EofFlag> read_indent(FileReader& fr);
-    Either<TokenizerError, EofFlag> read_within_line(FileReader& fr);
-    Either<TokenizerError, EofFlag> read_token_identifier(FileReader& fr,
-                                                          int startcol,
-                                                          string collector);
-    Either<TokenizerError, EofFlag> read_hex_literal(FileReader& fr,
-                                                     int startcol,
-                                                     char x_char);
-    Either<TokenizerError, EofFlag> read_token_number(FileReader& fr,
-                                                      int startcol,
-                                                      char first_char_digit);
+    void pop_front();
+    void f();
+
+    void read_indent(FileReader& fr);
+    void read_within_line(FileReader& fr);
+    void read_token_identifier(FileReader& fr, int startcol, string collector);
+    void read_hex_literal(FileReader& fr, int startcol, char x_char);
+    void read_token_number(FileReader& fr, int startcol, char first_char_digit);
     long double read_fractional(FileReader& fr);
 
     State state = State::waiting_for_indent;

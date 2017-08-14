@@ -31,13 +31,22 @@ echo "Dependency's dir: $deps"
 gitit () {
     url="$1"
     name="$2"
+    branch="$3"
     dir="$deps/$name"
     if [[ ! -d "$dir" ]]; then
         echo -e "\n-- Cloning [$name]: git clone $url $dir"
         git clone "$url" "$dir"
+        if [[ -n "$branch" ]]; then
+            cd "$dir"
+            git checkout "$branch"
+            cd -
+        fi
     else
         cd "$dir"
         echo -e "\n-- Updating [$name]: cd $dir && git pull --ff-only"
+        if [[ -n "$branch" ]]; then
+            git checkout "$branch"
+        fi
         git pull --ff-only
         cd -
     fi
@@ -91,14 +100,14 @@ cmakeit () {
     fi
 }
 
-gitit "https://github.com/llvm-mirror/llvm.git" "llvm"
+gitit "https://github.com/llvm-mirror/llvm.git" "llvm" "release_50"
 gitit "https://github.com/tamaskenez/nowide-standalone.git" "nowide-standalone"
 gitit "https://github.com/fmtlib/fmt.git" "fmt"
 gitit "https://github.com/tamaskenez/microlib.git" "microlib"
 gitit "https://github.com/mpark/variant.git" "variant"
 gitit "https://github.com/tamaskenez/Optional.git" "Optional"
 
-cmakeit "llvm"
+# cmakeit "llvm"
 cmakeit "nowide-standalone"
 cmakeit "fmt"
 cmakeit "variant"

@@ -6,6 +6,7 @@
 #include <utility>
 #include <array>
 #include <memory>
+#include <deque>
 
 #include "nowide/cstdio.hpp"
 #include "nowide/cstdlib.hpp"
@@ -34,10 +35,14 @@ using std::system_category;
 using std::move;
 using std::array;
 using std::unique_ptr;
+using std::deque;
 using mpark::variant;
 using mpark::holds_alternative;
+using mpark::visit;
 using mpark::get;
 using mpark::monostate;
+using mpark::in_place_type;
+using mpark::in_place_aggr_type;
 
 template <class T>
 using Maybe = std::experimental::optional<T>;

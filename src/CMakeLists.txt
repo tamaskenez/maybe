@@ -12,6 +12,7 @@ add_executable(maybe
     filereader.cpp
     utils.cpp globals.cpp
     tokenizer.cpp
+    parser.cpp
 )
 
 target_link_libraries(maybe PRIVATE

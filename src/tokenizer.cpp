@@ -5,23 +5,29 @@
 #include <climits>
 
 namespace maybe {
-Either<TokenizerError, EofFlag> Tokenizer::extract_next_token(FileReader& fr)
+
+void Tokenizer::load_at_least(FileReader& fr, int n)
+{
+    while (fifo.size() < n) {
+        read_next(fr);
+    }
+}
+
+void Tokenizer::read_next(FileReader& fr)
 {
     switch (state) {
         case State::waiting_for_indent:
-            return read_indent(fr);
+            read_indent(fr);
+            break;
         case State::within_line:
-            return read_within_line(fr);
+            read_within_line(fr);
+            break;
         default:
             CHECK(false, "internal");
     }
-    // never here
-    return TokenizerError{line_num,
-                          fr.chars_read() - current_line_start_pos + 1, 0,
-                          "internal tokenizer error"};
 }
 
-Either<TokenizerError, EofFlag> Tokenizer::read_indent(FileReader& fr)
+void Tokenizer::read_indent(FileReader& fr)
 {
     current_line_start_pos = fr.chars_read();
     ++line_num;
@@ -40,9 +46,10 @@ Either<TokenizerError, EofFlag> Tokenizer::read_indent(FileReader& fr)
                 ++tabs;
                 fr.advance();
             } else
-                return TokenizerError{
+                fifo.emplace_back<TokenizerError>(
                     line_num, spaces + tabs + 1, 1,
-                    "TAB character after SPACE in the indentation"};
+                    "TAB character after SPACE in the indentation");
+            return;
         } else {
             // by not calling fr.advance() next char stays in filereader
             break;
@@ -50,8 +57,8 @@ Either<TokenizerError, EofFlag> Tokenizer::read_indent(FileReader& fr)
     }
     // first char after indent
     state = State::within_line;
-    tokens.emplace_back(TokenIndent{line_num, tabs, spaces});
-    return EofFlag::not_eof;  // if EOF it will be reported by read_within_line
+    fifo.emplace_back<TokenIndent>(line_num, tabs, spaces);
+    return;
 }
 
 inline bool iswspace_but_not_newline(char c)
@@ -59,8 +66,9 @@ inline bool iswspace_but_not_newline(char c)
     return iswspace(c) && !(c == c_ascii_CR || c == c_ascii_LF);
 }
 
-Either<TokenizerError, EofFlag>
-Tokenizer::read_token_identifier(FileReader& fr, int startcol, string collector)
+void Tokenizer::read_token_identifier(FileReader& fr,
+                                      int startcol,
+                                      string collector)
 {
     // [alpha][alnum]* sequence
     // go until not alnum
@@ -72,8 +80,7 @@ Tokenizer::read_token_identifier(FileReader& fr, int startcol, string collector)
         } else
             break;
     }
-    tokens.emplace_back(TokenIdentifier{startcol, move(collector)});
-    return EofFlag::not_eof;
+    fifo.emplace_back<TokenIdentifier>(startcol, move(collector));
 }
 
 // Call this after "0x" has been read
@@ -82,9 +89,7 @@ Tokenizer::read_token_identifier(FileReader& fr, int startcol, string collector)
 // adds a TokenUnsigned with zero value and reads a suffix (TokenIdentifier)
 // interpreting
 // the x_char as the first character of the suffix.
-Either<TokenizerError, EofFlag> Tokenizer::read_hex_literal(FileReader& fr,
-                                                            int startcol,
-                                                            char x_char)
+void Tokenizer::read_hex_literal(FileReader& fr, int startcol, char x_char)
 {
     // read until hex digits
     uint64_t hexnumber = 0;
@@ -116,16 +121,16 @@ Either<TokenizerError, EofFlag> Tokenizer::read_hex_literal(FileReader& fr,
     if (UL_UNLIKELY(length <= 2)) {
         CHECK(length == 2);  // "0x"
         // add '0' TokenUnsigned and start new token with *maybe_x
-        tokens.emplace_back(TokenUnsigned{startcol, 1, 0});
-        return read_token_identifier(fr, startcol + 1, string{1, x_char});
+        fifo.emplace_back<TokenUnsigned>(startcol, 1, 0);
+        read_token_identifier(fr, startcol + 1, string{1, x_char});
+        return;
     }
     if (UL_UNLIKELY(too_long)) {
-        return TokenizerError{line_num, startcol, length,
-                              "hex literal exceeds 8 bytes"};
+        fifo.emplace_back<TokenizerError>(line_num, startcol, length,
+                                          "hex literal exceeds 8 bytes");
     }
 
-    tokens.emplace_back(TokenUnsigned{startcol, length, hexnumber});
-    return EofFlag::not_eof;
+    fifo.emplace_back<TokenUnsigned>(startcol, length, hexnumber);
 }
 
 using NatLiteral = variant<uint64_t, long double>;
@@ -187,10 +192,9 @@ string to_string(const NatLiteral& x)
         return fmt::format("{}", get<long double>(x));
 }
 
-Either<TokenizerError, EofFlag> Tokenizer::read_token_number(
-    FileReader& fr,
-    int startcol,
-    char first_char_digit)
+void Tokenizer::read_token_number(FileReader& fr,
+                                  int startcol,
+                                  char first_char_digit)
 {
     // sequence of digits
     if (UL_UNLIKELY(first_char_digit == '0')) {
@@ -198,7 +202,8 @@ Either<TokenizerError, EofFlag> Tokenizer::read_token_number(
         auto maybe_x = fr.peek_next_char();
         if (maybe_x && (*maybe_x == 'x' || *maybe_x == 'X')) {
             fr.advance();
-            return read_hex_literal(fr, startcol, *maybe_x);
+            read_hex_literal(fr, startcol, *maybe_x);
+            return;
         }
     }
     // not hexdigit, read digit seq
@@ -242,15 +247,19 @@ Either<TokenizerError, EofFlag> Tokenizer::read_token_number(
                     auto nl_exponent =
                         read_number(fr, NatLiteral{(uint64_t)(*maybe_c - '0')});
                     if (UL_UNLIKELY(
-                            holds_alternative<long double>(nl_exponent)))
-                        return TokenizerError{line_num, startcol,
-                                              fr.chars_read() - startcol,
-                                              "exponent is too high"};
+                            holds_alternative<long double>(nl_exponent))) {
+                        fifo.emplace_back<TokenizerError>(
+                            line_num, startcol, fr.chars_read() - startcol,
+                            "exponent is too high");
+                        return;
+                    }
                     uint64_t u_exponent = get<uint64_t>(nl_exponent);
-                    if (u_exponent >= INT_MAX)
-                        return TokenizerError{line_num, startcol,
-                                              fr.chars_read() - startcol,
-                                              "exponent is too high"};
+                    if (u_exponent >= INT_MAX) {
+                        fifo.emplace_back<TokenizerError>(
+                            line_num, startcol, fr.chars_read() - startcol,
+                            "exponent is too high");
+                        return;
+                    }
                     int exponent = (int)u_exponent;
                     if (sign_char == '-')
                         exponent = -exponent;
@@ -267,31 +276,38 @@ Either<TokenizerError, EofFlag> Tokenizer::read_token_number(
         }
     }
 
-    if (holds_alternative<uint64_t>(nat_literal))
-        tokens.emplace_back(TokenUnsigned{startcol, fr.chars_read() - startcol,
-                                          get<uint64_t>(nat_literal)});
-    else {
+    if (holds_alternative<uint64_t>(nat_literal)) {
+        fifo.emplace_back<TokenUnsigned>(startcol, fr.chars_read() - startcol,
+                                         get<uint64_t>(nat_literal));
+    } else {
         long double x = get<long double>(nat_literal);
         if (std::isnan(x)) {
+            fifo.emplace_back<TokenizerError>(line_num, startcol,
+                                              fr.chars_read() - startcol,
+                                              "invalid number");
+            return;
         } else if (std::isinf(x)) {
+            fifo.emplace_back<TokenizerError>(line_num, startcol,
+                                              fr.chars_read() - startcol,
+                                              "number overflow");
+            return;
         } else {
-            tokens.emplace_back(
-                TokenDouble{startcol, fr.chars_read() - startcol, x});
+            fifo.emplace_back<TokenDouble>(startcol, fr.chars_read() - startcol,
+                                           x);
         }
     }
-
-    if (suffix.empty())
-        return EofFlag::not_eof;
-    else
-        return read_token_identifier(fr, fr.chars_read() - suffix.size(),
-                                     move(suffix));
+    if (!suffix.empty())
+        read_token_identifier(fr, fr.chars_read() - suffix.size(),
+                              move(suffix));
 }
 
-Either<TokenizerError, EofFlag> Tokenizer::read_within_line(FileReader& fr)
+void Tokenizer::read_within_line(FileReader& fr)
 {
     auto maybe_c = fr.next_char();
-    if (UL_UNLIKELY(!maybe_c))
-        return EofFlag::eof;  // means EOF
+    if (UL_UNLIKELY(!maybe_c)) {
+        fifo.emplace_back<TokenEof>();
+        return;
+    }
     char c = *maybe_c;
     int startcol = fr.chars_read();  // - 1 + 1
     switch (c) {
@@ -301,14 +317,14 @@ Either<TokenizerError, EofFlag> Tokenizer::read_within_line(FileReader& fr)
             if (maybe_next_c && *maybe_next_c == c_ascii_LF) {
                 fr.advance();
             }
-            tokens.emplace_back(TokenEol{});
             state = State::waiting_for_indent;
-            return EofFlag::not_eof;
+            fifo.emplace_back<TokenEol>();
+            return;
         }
         case c_ascii_LF:
-            tokens.emplace_back(TokenEol{});
             state = State::waiting_for_indent;
-            return EofFlag::not_eof;
+            fifo.emplace_back<TokenEol>();
+            return;
         default: {
             if (iswspace(c)) {
                 // whitespace sequence
@@ -321,16 +337,16 @@ Either<TokenizerError, EofFlag> Tokenizer::read_within_line(FileReader& fr)
                     } else
                         break;
                 }
-                tokens.emplace_back(TokenWspace{startcol, idx});
-                return EofFlag::not_eof;
+                fifo.emplace_back<TokenWspace>(startcol, idx);
             } else if (isalpha(c)) {
                 // [alpha][alnum]* sequence
-                return read_token_identifier(fr, startcol, string{1, c});
+                read_token_identifier(fr, startcol, string{1, c});
             } else if (isdigit(c)) {
-                return read_token_number(fr, startcol, c);
+                read_token_number(fr, startcol, c);
+                return;
             } else {
-                tokens.emplace_back(TokenChar{startcol, *maybe_c});
-                return EofFlag::not_eof;
+                fifo.emplace_back<TokenChar>(startcol, *maybe_c);
+                return;
             }
         }
     }
