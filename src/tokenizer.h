@@ -7,19 +7,17 @@
 
 namespace maybe {
 
-struct TokenizerError
-{
-    int line_num;  // 1-based
-    int col;       // 1-based
-    int length;
-    string msg;
-};
-
 struct TokenIndent
 {
+    enum class IndentChar
+    {
+        tab,
+        space
+    };
+
     int line_num;
-    int num_tabs;
-    int num_spaces;
+    IndentChar indent_char;
+    int level;
 };
 
 struct TokenChar
@@ -47,33 +45,34 @@ struct TokenIdentifier
     string s;
 };
 
-struct TokenUnsigned
+using Nonnegative = variant<uint64_t, long double>;
+
+struct TokenNumber
 {
     int col, length;
-    uint64_t number;
+    Nonnegative value;
 };
 
-struct TokenDouble
-{
-    int col, length;
-    long double number;
-};
-
-using Token = variant<TokenEof,  // first must be a cheap class
-                      TokenEol,
-                      TokenChar,
-                      TokenWspace,
-                      TokenIndent,
-                      TokenIdentifier,
-                      TokenUnsigned,
-                      TokenDouble,
-                      TokenizerError  // error is flattened into Token to avoid
-                                      // diffult-to-handle 2-level variant
-                      >;
+using Token =
+    variant<TokenEof,  // first must be a cheap class
+            TokenEol,
+            TokenChar,
+            TokenWspace,
+            TokenIndent,
+            TokenIdentifier,
+            TokenNumber,
+            ErrorInSourceFile  // error is flattened into Token to avoid
+                               // diffult-to-handle 2-level variant
+            >;
 
 struct TokenFifo
 {
-    const Token& front()
+    const Token& front() const
+    {
+        assert(!empty());
+        return tokens.front();
+    }
+    Token& front()
     {
         assert(!empty());
         return tokens.front();
@@ -103,8 +102,15 @@ private:
 
 struct Tokenizer
 {
-    void load_at_least(FileReader& fr, int n);
-    void read_next(FileReader& fr);
+    // filename is for error msgs
+    Tokenizer(FileReader& fr, string filename)
+        : fr(fr), filename(move(filename))
+    {
+    }
+
+    const Token& get_next_token();
+    void load_at_least(int n);
+    void read_next();
 
     TokenFifo fifo;
 
@@ -112,18 +118,22 @@ private:
     enum class State
     {
         waiting_for_indent,
-        within_line
+        within_line,
+        eof
     };
 
     void pop_front();
     void f();
 
-    void read_indent(FileReader& fr);
-    void read_within_line(FileReader& fr);
-    void read_token_identifier(FileReader& fr, int startcol, string collector);
-    void read_hex_literal(FileReader& fr, int startcol, char x_char);
-    void read_token_number(FileReader& fr, int startcol, char first_char_digit);
-    long double read_fractional(FileReader& fr);
+    void read_indent();
+    void read_within_line();
+    void read_token_identifier(int startcol, string collector);
+    void read_hex_literal(int startcol, char x_char);
+    void read_token_number(int startcol, char first_char_digit);
+    long double read_fractional();
+
+    FileReader& fr;
+    string filename;
 
     State state = State::waiting_for_indent;
     int line_num = 0;  // 1-based, first line increases it to 1

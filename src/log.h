@@ -21,6 +21,14 @@ template <typename... Args>
 }
 
 template <typename... Args>
+void report_error(const char* format, const Args&... args)
+{
+    fprintf(stderr, "%s: error: ", c_program_name);
+    fmt::print(stderr, format, args...);
+    fprintf(stderr, "\n");
+}
+
+template <typename... Args>
 [[noreturn]] void log_fatal(const system_error& se,
                             const char* format,
                             const Args&... args)
@@ -28,6 +36,15 @@ template <typename... Args>
     fmt::print(stderr, "{}: error: {} ({})\n", c_program_name,
                fmt::format(format, args...), se.what());
     std::exit(EXIT_FAILURE);
+}
+
+template <typename... Args>
+void report_error(const system_error& se,
+                  const char* format,
+                  const Args&... args)
+{
+    fmt::print(stderr, "{}: error: {} ({})\n", c_program_name,
+               fmt::format(format, args...), se.what());
 }
 
 #define LOG_DEBUG(format, ...)                                             \

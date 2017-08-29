@@ -7,19 +7,37 @@
 
 namespace maybe {
 
-void compile_file(string_par filename)
+// true on success
+ErrorAccu compile_file(string_par filename)
 {
     auto lr = FileReader::new_(filename.c_str());
     if (is_left(lr)) {
-        log_fatal(left(lr), "can't open file '{}'", filename.c_str());
+        report_error(left(lr), "can't open file '{}'", filename.c_str());
+        return ErrorAccu{1};
     }
     auto fr = move(right(lr));
-    Tokenizer tokenizer;
-
-    TokenizerAccess ta{&fr, &tokenizer, filename.c_str()};
+    // skip UTF-8 BOM
+    {
+        static const array<char, 3> c_utf8_bom = {
+            {(char)0xef, (char)0xbb, (char)0xbf}};
+        fr.read_ahead_at_least(c_utf8_bom.size());
+        bool bom_failed = false;
+        for (int i = 0; i < c_utf8_bom.size(); ++i) {
+            auto c = fr.peek_char_in_read_buf(i);
+            if (!c || *c != c_utf8_bom[i]) {
+                bom_failed = true;
+                break;
+            }
+        }
+        if (!bom_failed) {
+            for (int i = 0; i < c_utf8_bom.size(); ++i)
+                fr.next_char();
+        }
+    }
+    Tokenizer tokenizer{fr, filename.str()};
 
     Parser parser;
-    parser.parse_toplevel_loop(ta);
+    return parser.parse_toplevel_loop(tokenizer);
 
 #if 0
     for (auto& t : tokenizer.tokens) {
@@ -55,9 +73,11 @@ void compile_file(string_par filename)
 #endif
 }
 
-void run_compiler(const CommandLine& cl)
+int run_compiler(const CommandLine& cl)
 {
+    ErrorAccu ea;
     for (auto& f : cl.files)
-        compile_file(f);
+        ea += compile_file(f);
+    return ea.num_errors == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 }

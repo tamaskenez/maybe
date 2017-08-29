@@ -4,18 +4,12 @@
 #include "log.h"
 
 namespace maybe {
-struct TokenizerAccess
-{
-    const Token& read_next();
-
-    FileReader* fr;
-    Tokenizer* tokenizer;
-    const char* filename;
-};
 
 struct Parser
 {
-    void parse_toplevel_loop(TokenizerAccess& ta);
+    Parser(Tokenizer& tokenizer) : tokenizer(tokenizer) {}
+
+    ErrorAccu parse_toplevel_loop();
 
 private:
     enum LineMarkerContext
@@ -24,7 +18,12 @@ private:
         lmc_expect_eol
     };
 
+    Tokenizer& tokenizer;
+
     LineMarkerContext line_marker_context = lmc_expect_indent;
     TokenIndent current_indent;
+
+    bool exit_loop = false;
+    ErrorAccu error_accu;
 };
 }

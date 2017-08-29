@@ -104,7 +104,7 @@ gitit "https://github.com/llvm-mirror/llvm.git" "llvm" "release_50"
 gitit "https://github.com/tamaskenez/nowide-standalone.git" "nowide-standalone"
 gitit "https://github.com/fmtlib/fmt.git" "fmt"
 gitit "https://github.com/tamaskenez/microlib.git" "microlib"
-gitit "https://github.com/mpark/variant.git" "variant"
+gitit "https://github.com/tamaskenez/variant.git" "variant"
 gitit "https://github.com/tamaskenez/Optional.git" "Optional"
 
 # cmakeit "llvm"

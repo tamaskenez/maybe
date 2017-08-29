@@ -25,11 +25,13 @@ int main(int argc, char* argv[])
     try {
         nowide::args nwa(argc, argv);  // converts args to utf8 (windows-only)
         auto cl = parse_command_line(argc, argv);
-        if (cl.help)
+        int result;
+        if (cl.help) {
             fmt::print(c_usage_text, c_program_name);
-        else
-            run_compiler(cl);
-        return EXIT_SUCCESS;
+            result = EXIT_SUCCESS;
+        } else
+            result = run_compiler(cl);
+        return result;
     } catch (std::exception& e) {
         fprintf(stderr, "Aborting, exception: %s\n", e.what());
     } catch (...) {

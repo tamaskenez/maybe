@@ -42,4 +42,19 @@ Y& right(Either<X, Y>& v)
 {
     return mpark::get<1>(v);
 }
+struct ErrorAccu
+{
+    void operator+=(const ErrorAccu& x) { num_errors += x.num_errors; }
+    int num_errors = 0;
+};
+struct ErrorInSourceFile
+{
+    bool has_location() const { return line_num > 0 && col > 0; }
+    string filename;
+    string msg;
+    int line_num = 0;  // 1-based
+    int col = 0;       // 1-based
+    int length = 0;
+};
+void report_error(const ErrorInSourceFile& x);
 }
