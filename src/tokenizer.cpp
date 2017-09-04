@@ -371,6 +371,23 @@ void Tokenizer::read_within_line()
                 read_token_number(startcol, c);
                 return;
             } else {
+                // strip end-of-line comments
+                if (UL_UNLIKELY(c == '/')) {
+                    auto maybe_next_c = fr.peek_next_char();
+                    if (maybe_next_c && *maybe_next_c == '/') {
+                        fr.advance();
+                        // swallow comment until EOL
+                        for (;;) {
+                            maybe_next_c = fr.peek_next_char();
+                            if (!maybe_next_c || *maybe_next_c == c_ascii_CR ||
+                                *maybe_next_c == c_ascii_LF)
+                                break;
+                            fr.advance();
+                        }
+                        read_within_line();
+                        return;
+                    }
+                }
                 fifo.emplace_back<TokenChar>(startcol, *maybe_c);
                 return;
             }

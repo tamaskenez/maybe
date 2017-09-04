@@ -194,3 +194,76 @@ moved into `r`. `l@i` may or may not be copyable, that's why we need the
 
                 r ++= [clone l@i] ++ x
         ret r
+
+# Trying to find alterative, simpler indentation rules
+
+- two successive lines, same indentation generates instruction separator. There
+  must be no unclosed {[( since the first line in a row of indentical
+  indentation levels. Unclosed {[('s are compile error.
+- two successive lines, increased indentation, no unfinished {[( from first
+  line, last char colon: start new block
+- two successive lines, increased indentation, unfinished {[( from first line,
+  no colon at end: continue line
+- two successive lines, increased indentation, no unfinished {[( and no colon:
+  compile error
+- two successive lines, increased indentation, unfinished {[( and colon: could
+  be handled but for no compiler error
+- two successive lines, decreased indentation, closes all all colons and
+  unfinished ({[ since back to the line which has the same indentation level.
+
+
+Algorithm:
+
+- Start of line: remember current line indentation level
+- opening ([{: push on stack with indentation level
+- Closing )]}: 
+- Colon at end of line: push on stack with indentation level, emit 
+
+
+opening: ( [ {
+closing: ) ] }
+
+last token of prev line:
+  ellipsis
+  colon
+  other
+
+first token of next line:
+  ellipsis
+  )]
+  }
+  } else
+  else
+  end
+  other
+
+indentation level change between two lines:
+  less
+  same
+  more
+
+
+1. Handle ellipses
+
+- Examine the `newlines,indent` sections
+- If there's an ellipse on any side of the the section:
+  - If indentation decresases, ERROR
+  - if indentation increases, replace the newlines,indent with an indent token
+    which keeps the previous logical line and introduces the new physical
+  - if indentation is same:
+    - if logline == physline: ERROR
+      else emit indent token with new physical line, same logical line
+
+2. Then
+
+In curly mode, (default and after `{` or block starting `:`) newlines mean `;`,
+the sequencing operator
+In paren mode, (after `(` and `[`) newlines are whitespace
+
+When encountering ([{: a stack is maintained.
+
+`:` is allowed only when the current logical line has no unfinished ([{. After
+it, the indentation must be increased in relative to the last physical line.
+
+When ([{, )]} encountered, stack and curly/paren mode is updated.
+

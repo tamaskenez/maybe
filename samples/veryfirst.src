@@ -1,9 +1,10 @@
 
-
-
-
 let println: Slice byte -> ()
-let println x = if #x > 0: libc.printf("%.*s\n", #x, &x@0)
+
+let println x =
+    if #x > 0:
+        libc.printf("%.*s\n", #x, &x@0)
 
 println "Hello, world!"
 println("Hello, world!")
+
