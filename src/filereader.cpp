@@ -28,6 +28,15 @@ FileReader::FileReader(FILE* f, string filename)
     p.next_char_to_read = p.read_buf_end = &read_buf->front();
 }
 
+bool FileReader::advance_if_prefix(const char* q, int size)
+{
+    const auto bytes_in_buf = p.read_buf_end - p.next_char_to_read;
+    if (bytes_in_buf < size || strncmp(q, p.next_char_to_read, size) != 0)
+        return false;
+    p.next_char_to_read += size;
+    return true;
+}
+
 int FileReader::read_ahead_at_least(int n)
 {
     CHECK(n <= c_filereader_read_buf_capacity);

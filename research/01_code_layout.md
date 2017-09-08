@@ -14,23 +14,24 @@ Character classes (where a character is a Unicode code-point, encoded by a UTF-8
 sequence):
 
 NEWLINE: CR and LF OR CRLF
-UCNZC: (Unicode no-ZC) Unicode except the Z? and C? categories
-Z?: Unicode Zs, Zl, Zp categories
-C?: Unicode Cc, Cf, Cs, Co, Cn categories
+UCNZC: (Unicode no-ZC) Unicode except the Z? and C? categories (non-separator non-control chars)
+Z?: Unicode Zs, Zl, Zp categories (space/line/par separator)
+C?: Unicode Cc, Cf, Cs, Co, Cn categories (all control/private/surrogate/softhyphen)
+
+commentchar: (UCNZC|Zs|TAB|Cf|Cs)
 
 # Lines
 
 Each line is one of these:
 
 Shell comment:
-    '#' (UCNZC|Zs|TAB|Cf|Cs)* NEWLINE
+    '#' commentchar* NEWLINE
 
 Blank line:
-    (TAB|SPACE)* NEWLINE
+    (TAB*|SPACE*)(//commentchar*)? NEWLINE
 
 Code line:
-    TAB* UCNZC (UCNZC|TAB|SPACE)* NEWLINE
-    SPACE* UCNZC (UCNZC|TAB|SPACE)* NEWLINE
+    (TAB*|SPACE*) UCNZC (UCNZC|TAB|SPACE)* (//commentchar*)? NEWLINE
 
 # Indentation
 

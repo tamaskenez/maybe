@@ -28,13 +28,20 @@ public:
 
     // return number of unread bytes in read buf
     int read_ahead_at_least(int n);
-    // return i-th unread char in read_buf (without advancing read position),
-    // or Nothing if i is too big
+
+    // Return i-th unread char in read_buf (without advancing read position),
+    // or Nothing if i is too big.
+    // NOTE: Does not fill refill buffer!
     Maybe<char> peek_char_in_read_buf(int i);
 
-    // return next char without advancing read position. Refills read_buf if
-    // empty.
-    // return Nothing if eof or error
+    // Advance read pointer and return true if string slice (p, size) is a
+    // prefix of current read_buf.
+    // NOTE: Does not fill refill buffer!
+    bool advance_if_prefix(const char* p, int size);
+
+    // Refills read_buf if empty then return next char without advancing read
+    // position.
+    // Return Nothing if eof or error
     Maybe<char> peek_next_char()
     {
         if (UL_UNLIKELY(p.next_char_to_read >= p.read_buf_end)) {
@@ -48,7 +55,8 @@ public:
         return *p.next_char_to_read;
     }
 
-    // return next char, advances read position. return Nothing if eof or error
+    // Refills read_buf if empty then return next char, advances read position.
+    // Return Nothing if eof or error
     Maybe<char> next_char()
     {
         if (UL_UNLIKELY(p.next_char_to_read >= p.read_buf_end)) {

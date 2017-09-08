@@ -36,8 +36,8 @@ ErrorAccu compile_file(string_par filename)
     }
     Tokenizer tokenizer{fr, filename.str()};
 
-    Parser parser;
-    return parser.parse_toplevel_loop(tokenizer);
+    Parser parser{tokenizer};
+    return parser.parse_toplevel_loop();
 
 #if 0
     for (auto& t : tokenizer.tokens) {

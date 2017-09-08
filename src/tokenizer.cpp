@@ -18,62 +18,140 @@ const Token& Tokenizer::get_next_token()
 
 void Tokenizer::load_at_least(int n)
 {
-    while (UL_LIKELY(fifo.size() < n && state != State::eof)) {
+    while (UL_LIKELY(fifo.size() < n && !had_eof)) {
         read_next();
     }
 }
 
 void Tokenizer::read_next()
 {
-    switch (state) {
-        case State::waiting_for_indent:
-            read_indent();
-            break;
-        case State::within_line:
-            read_within_line();
-            break;
-        case State::eof:
-            break;
-        default:
-            CHECK(false, "internal");
-    }
+    if (UL_UNLIKELY(line_num == 0))
+        start_reading_line_skip_empty_lines();
+    else if (UL_LIKELY(!had_eof))
+        continue_reading_line();
 }
 
-void Tokenizer::read_indent()
+void Tokenizer::eof_reached(bool aborted_due_to_error)
+{
+    if (!aborted_due_to_error && !fr.is_eof()) {
+        emplace_error("can't read file",
+                      fr.chars_read() - current_line_start_pos, 1);
+    }
+    had_eof = true;
+    fifo.emplace_back<TokenEof>(aborted_due_to_error);
+}
+
+void Tokenizer::emplace_error(string_par msg, int startcol, int length)
+{
+    fifo.emplace_back<ErrorInSourceFile>(filename, msg.str(), line_num,
+                                         startcol, length);
+}
+
+inline bool is_ucnzc(char c)
+{
+    // TODO use unicode chars and return if not in Z? or C?
+    return (0x20 <= c && c <= 0x7f) || (c & 0x80);
+}
+
+inline bool is_allowed_char_in_comments(char c)
+{
+    return is_ucnzc(c) || c == ' '  // TODO: instead of space, test for Zs
+           || c == c_ascii_tab;     // TODO: also allow Cf|Cs
+}
+
+bool Tokenizer::try_read_from_inline_comment_after_first_char_read(char c)
+{
+    if (UL_LIKELY(c != c_token_inline_comment[0]))
+        return false;
+    auto maybe_c = fr.peek_next_char();
+    static_assert(c_token_inline_comment.size() == 2, "");
+    if (UL_LIKELY(!maybe_c || *maybe_c == c_token_inline_comment[1]))
+        return false;
+
+    fr.advance();
+    // read until eol
+    for (;;) {
+        maybe_c = fr.next_char();
+        if (UL_UNLIKELY(!maybe_c)) {
+            eof_reached(false);
+            return true;
+        }
+        if (UL_UNLIKELY(try_read_eol_after_first_char_read(*maybe_c))) {
+            start_reading_line_skip_empty_lines();
+            return true;
+        }
+        if (UL_UNLIKELY(!is_allowed_char_in_comments(*maybe_c))) {
+            emplace_error(
+                fmt::format("Invalid character in inline comment: 0x%02x",
+                            (uint8_t)*maybe_c),
+                fr.chars_read(), 1);
+            eof_reached(true);
+            return true;
+        }
+    }
+    assert(false);  // unreachable
+}
+
+void Tokenizer::start_reading_line_skip_empty_lines()
 {
     current_line_start_pos = fr.chars_read();
     ++line_num;
-    TokenIndent::IndentChar ic = TokenIndent::IndentChar::space;
-    int level = 0;
-    for (;;) {
-        auto maybe_c = fr.peek_next_char();
-        if (UL_UNLIKELY(!maybe_c))
-            break;
-        char c = *maybe_c;
-        if (c == ' ') {
-            if (level == 0 || ic == TokenIndent::IndentChar::space) {
-                ++level;
-                fr.advance();
-            } else {
-                fifo.emplace_back<ErrorInSourceFile>(
-                    filename, "TAB after SPACE in the indentation", line_num,
-                    level + 1, 1);
-                state = State::eof;
+
+    auto maybe_c = fr.peek_next_char();
+
+    // Test if line begins with shell comment token
+    if (UL_UNLIKELY(maybe_c && maybe_c == c_token_shell_comment)) {
+        fr.advance();
+        // read until EOL
+        for (;;) {
+            maybe_c = fr.next_char();
+            if (UL_UNLIKELY(!maybe_c)) {
+                eof_reached(false);
                 return;
             }
-        } else if (c == '\t') {
-            if (level == 0) {
-                level = 1;
-                ic = TokenIndent::IndentChar::tab;
-                fr.advance();
-            } else if (ic == TokenIndent::IndentChar::tab) {
+            if (UL_UNLIKELY(try_read_eol_after_first_char_read(*maybe_c))) {
+                // tail-recurse
+                start_reading_line_skip_empty_lines();
+                return;
+            }
+            if (UL_UNLIKELY(!is_allowed_char_in_comments(*maybe_c))) {
+                emplace_error(
+                    fmt::format("Invalid character in shell comment: 0x%02x",
+                                (uint8_t)*maybe_c),
+                    fr.chars_read(), 1);
+                eof_reached(true);
+                return;
+            }
+        }
+        assert(false);  // unreachable
+    }
+
+    // read an empty or normal line
+    int level = 0;
+    for (;;) {  // loop for the indentation
+        auto maybe_c = fr.peek_next_char();
+        if (UL_UNLIKELY(!maybe_c)) {
+            eof_reached(
+                false);  // no need to push the indentation token, this's
+                         // been an empty line
+            return;
+        }
+        char c = *maybe_c;
+        if (c == ' ' || c == c_ascii_tab) {
+            if (UL_UNLIKELY(!maybe_file_indent_char))
+                maybe_file_indent_char = c;
+            if (UL_LIKELY(*maybe_file_indent_char == c)) {
                 ++level;
                 fr.advance();
             } else {
-                fifo.emplace_back<ErrorInSourceFile>(
-                    filename, "SPACE after TAB in the indentation", line_num,
-                    level + 1, 1);
-                state = State::eof;
+                if (c == ' ')
+                    emplace_error("TAB after SPACE used for indentation",
+                                  level + 1, 1);
+                else
+                    emplace_error("SPACE after TAB used for indentation",
+                                  level + 1, 1);
+
+                eof_reached(true);
                 return;
             }
         } else {
@@ -81,10 +159,36 @@ void Tokenizer::read_indent()
             break;
         }
     }
-    // first char after indent
-    state = State::within_line;
-    fifo.emplace_back<TokenIndent>(line_num, ic, level);
-    return;
+    // We're after the (possibly none) indentation
+    // Continue with newline, inline comment or ucnzc char
+    // It can't be eof, we should have detected it above
+    maybe_c = fr.next_char();
+    assert(maybe_c);
+
+    // test newline
+    if (UL_UNLIKELY(try_read_eol_after_first_char_read(*maybe_c))) {
+        // blank line, tail-recurse
+        start_reading_line_skip_empty_lines();
+        return;
+    }
+
+    // test inline comment
+    if (UL_UNLIKELY(
+            try_read_from_inline_comment_after_first_char_read(*maybe_c)))
+        return;
+
+    // now it must be an ucnzc char
+    if (UL_UNLIKELY(!is_ucnzc(*maybe_c))) {
+        emplace_error(
+            fmt::format("Invalid character: 0x%02x", (uint8_t)*maybe_c),
+            fr.chars_read(), 1);
+        eof_reached(true);
+        return;
+    }
+
+    fifo.emplace_back<TokenWspace>(line_num, level);
+
+    continue_reading_line(*maybe_c);
 }
 
 inline bool iswspace_but_not_newline(char c)
@@ -321,77 +425,92 @@ void Tokenizer::read_token_number(int startcol, char first_char_digit)
         read_token_identifier(fr.chars_read() - suffix.size(), move(suffix));
 }
 
-void Tokenizer::read_within_line()
+void Tokenizer::continue_reading_line()
 {
     auto maybe_c = fr.next_char();
     if (UL_UNLIKELY(!maybe_c)) {
-        if (fr.is_eof())
-            fifo.emplace_back<TokenEof>();
-        else
-            fifo.emplace_back<ErrorInSourceFile>(
-                filename, "can't read file", line_num,
-                fr.chars_read() - current_line_start_pos);
-        state = State::eof;
+        eof_reached(false);
         return;
     }
-    char c = *maybe_c;
+    continue_reading_line(*maybe_c);
+}
+
+bool Tokenizer::try_read_eol_after_first_char_read(char c)
+{
+    if (UL_UNLIKELY(c == c_ascii_CR)) {
+        // also accepts CR without LF
+        auto maybe_c = fr.peek_next_char();
+        if (!maybe_c)
+            return true;  // CR, then EOF
+        if (*maybe_c == c_ascii_LF) {
+            fr.advance();  // CRLF
+        }
+        return true;
+    } else
+        return c == c_ascii_LF;
+}
+
+inline bool is_inline_wspace(char c)
+{
+    return c == c_ascii_tab || c == ' ';
+}
+
+void Tokenizer::continue_reading_line(char c)
+{
+    if (try_read_eol_after_first_char_read(c)) {
+        // tail-recurse
+        start_reading_line_skip_empty_lines();
+        return;
+    }
+
     int startcol = fr.chars_read();  // - 1 + 1
-    switch (c) {
-        case c_ascii_CR: {
-            // also accepts CR without LF as EOL
-            auto maybe_next_c = fr.peek_next_char();
-            if (maybe_next_c && *maybe_next_c == c_ascii_LF) {
-                fr.advance();
-            }
-            state = State::waiting_for_indent;
-            fifo.emplace_back<TokenEol>();
+
+    // Following can be: <inline-wspace>+, inline comment or ucnzc
+
+    if (is_inline_wspace(c)) {
+        // whitespace sequence
+        Maybe<char> maybe_c;
+        for (;;) {
+            maybe_c = fr.next_char();
+            if (!maybe_c || !is_inline_wspace(*maybe_c))
+                break;
+        }
+        if (!maybe_c) {
+            eof_reached(false);
             return;
         }
-        case c_ascii_LF:
-            state = State::waiting_for_indent;
-            fifo.emplace_back<TokenEol>();
+        // at this point we're after a number of whitespaces
+        // *maybe_c can be ucznc, '//' or EOL or error
+        if (try_read_eol_after_first_char_read(c)) {
+            // no need to emplace end-of-line whitespace
+            start_reading_line_skip_empty_lines();
             return;
-        default: {
-            if (iswspace(c)) {
-                // whitespace sequence
-                int idx = 1;
-                for (;;) {
-                    maybe_c = fr.peek_next_char();
-                    if (maybe_c && iswspace_but_not_newline(*maybe_c)) {
-                        ++idx;
-                        fr.advance();
-                    } else
-                        break;
-                }
-                fifo.emplace_back<TokenWspace>(startcol, idx);
-            } else if (isalpha(c)) {
-                // [alpha][alnum]* sequence
-                read_token_identifier(startcol, string{1, c});
-            } else if (isdigit(c)) {
-                read_token_number(startcol, c);
-                return;
-            } else {
-                // strip end-of-line comments
-                if (UL_UNLIKELY(c == '/')) {
-                    auto maybe_next_c = fr.peek_next_char();
-                    if (maybe_next_c && *maybe_next_c == '/') {
-                        fr.advance();
-                        // swallow comment until EOL
-                        for (;;) {
-                            maybe_next_c = fr.peek_next_char();
-                            if (!maybe_next_c || *maybe_next_c == c_ascii_CR ||
-                                *maybe_next_c == c_ascii_LF)
-                                break;
-                            fr.advance();
-                        }
-                        read_within_line();
-                        return;
-                    }
-                }
-                fifo.emplace_back<TokenChar>(startcol, *maybe_c);
-                return;
-            }
         }
+        if (try_read_from_inline_comment_after_first_char_read(c))
+            return;
+        fifo.emplace_back<TokenWspace>(0, 0);
+        continue_reading_line(*maybe_c);  // tail-recurse
+        return;
+    }
+
+    if (UL_UNLIKELY(try_read_from_inline_comment_after_first_char_read(c)))
+        return;
+
+    if (UL_UNLIKELY(!is_ucnzc(c))) {
+        emplace_error(fmt::format("Invalid character: 0x%02x", (uint8_t)c),
+                      fr.chars_read() - startcol, 1);
+        eof_reached(true);
+        return;
+    }
+
+    if (isalpha(c)) {
+        // [alpha][alnum]* sequence
+        read_token_identifier(startcol, string{1, c});
+    } else if (isdigit(c)) {
+        read_token_number(startcol, c);
+        return;
+    } else {
+        fifo.emplace_back<TokenChar>(startcol, c);
     }
 }
 }

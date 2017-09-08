@@ -33,37 +33,15 @@ ErrorAccu Parser::parse_toplevel_loop()
 #define U(X) void operator()(const X&)
 #define V(X) void operator()(const X& t)
 
-        U(TokenEol)
-        {
-            CHECK(that->line_marker_context == lmc_expect_eol);
-            that->line_marker_context = lmc_expect_indent;
-        }
         U(TokenChar) {}
         U(TokenWspace) {}
-        V(TokenIndent)
-        {
-            CHECK(that->line_marker_context == lmc_expect_indent);
-
-            auto indent_token = t;  // copy out
-
-            // check next token, if it's eol, just ignore this line
-            auto& next_token = that->tokenizer.get_next_token();
-
-            if (holds_alternative<TokenEol>(next_token)) {
-                // this was an empty line
-                return;
-            }
-
-            that->line_marker_context = lmc_expect_eol;
-            that->current_indent = t;
-        }
         U(TokenIdentifier) {}
         U(TokenNumber) {}
 #undef U
 #undef V
     };
     for (; !exit_loop;) {
-        auto& token = t.get_next_token();
+        auto& token = tokenizer.get_next_token();
         visit(Visitor{this}, token);
     }
     return error_accu;

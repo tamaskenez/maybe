@@ -7,17 +7,12 @@
 
 namespace maybe {
 
-struct TokenIndent
+struct TokenWspace
 {
-    enum class IndentChar
-    {
-        tab,
-        space
-    };
-
-    int line_num;
-    IndentChar indent_char;
-    int level;
+    bool inline_() const { return line_num == 0; }
+    int line_num;      // 0 for inline whitespace, > 0 for whitespace between
+                       // continuation lines
+    int indent_level;  // valid if line_num > 0
 };
 
 struct TokenChar
@@ -26,17 +21,9 @@ struct TokenChar
     char c;
 };
 
-struct TokenWspace
-{
-    int col, length;
-};
-
-struct TokenEol
-{
-};
-
 struct TokenEof
 {
+    bool aborted_due_to_error;
 };
 
 struct TokenIdentifier
@@ -55,10 +42,8 @@ struct TokenNumber
 
 using Token =
     variant<TokenEof,  // first must be a cheap class
-            TokenEol,
             TokenChar,
             TokenWspace,
-            TokenIndent,
             TokenIdentifier,
             TokenNumber,
             ErrorInSourceFile  // error is flattened into Token to avoid
@@ -115,13 +100,6 @@ struct Tokenizer
     TokenFifo fifo;
 
 private:
-    enum class State
-    {
-        waiting_for_indent,
-        within_line,
-        eof
-    };
-
     void pop_front();
     void f();
 
@@ -131,13 +109,20 @@ private:
     void read_hex_literal(int startcol, char x_char);
     void read_token_number(int startcol, char first_char_digit);
     long double read_fractional();
-
+    void eof_reached(bool aborted_due_to_error);
+    void start_reading_line_skip_empty_lines();
+    void continue_reading_line();
+    void continue_reading_line(char c);
+    void emplace_error(string_par msg, int startcol, int length);
+    bool try_read_eol_after_first_char_read(char c);
+    bool try_read_from_inline_comment_after_first_char_read(char c);
     FileReader& fr;
     string filename;
 
-    State state = State::waiting_for_indent;
+    bool had_eof = false;
     int line_num = 0;  // 1-based, first line increases it to 1
     int current_line_start_pos = 0;
     string strtmp;
+    Maybe<char> maybe_file_indent_char;
 };
 }
