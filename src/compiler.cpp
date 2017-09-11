@@ -7,6 +7,15 @@
 
 namespace maybe {
 
+struct to_string_functor
+{
+    template <class T>
+    string operator()(const T& x) const
+    {
+        return std::to_string(x);
+    }
+};
+
 // true on success
 ErrorAccu compile_file(string_par filename)
 {
@@ -36,11 +45,13 @@ ErrorAccu compile_file(string_par filename)
     }
     Tokenizer tokenizer{fr, filename.str()};
 
+#if 0
     Parser parser{tokenizer};
     return parser.parse_toplevel_loop();
-
-#if 0
-    for (auto& t : tokenizer.tokens) {
+#else
+    tokenizer.load_at_least(INT_MAX);
+    for (int i = 0; i < tokenizer.fifo.size(); ++i) {
+        const auto& t = tokenizer.fifo.at(i);
 #define MATCH(T)                   \
     if (holds_alternative<T>(t)) { \
         auto& x = get<T>(t);
@@ -51,25 +62,23 @@ ErrorAccu compile_file(string_par filename)
         auto& x = get<T>(t);
 #define END_MATCH }
 
-        MATCH(TokenIndent)
-        printf("<IND-%d/%d>", x.num_tabs, x.num_spaces);
+        MATCH(TokenWspace)
+        if (x.inline_()) {
+            printf(" ");
+        } else {
+            string s('.', x.indent_level);
+            printf("\n%04d%s", x.line_num, s.c_str());
+        }
         ELSE_MATCH(TokenChar)
         printf("[%c]", x.c);
-        ELSE_MATCH(TokenWspace)
-        printf("_");
-        (void)x;
         ELSE_MATCH(TokenIdentifier)
         printf("<%s>", x.s.c_str());
-        ELSE_MATCH(TokenEol)
-        printf("<EOL>\n");
-        (void)x;
-        ELSE_MATCH(TokenUnsigned)
-        fmt::print("#U{}", x.number);
-        ELSE_MATCH(TokenDouble)
-        fmt::print("#D{}", x.number);
+        ELSE_MATCH(TokenNumber)
+        printf("#%s", visit(to_string_functor{}, x.value).c_str());
         END_MATCH
     }
     printf("<EOF>\n");
+    return ErrorAccu{};
 #endif
 }
 
