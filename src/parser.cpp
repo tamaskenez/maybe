@@ -36,6 +36,7 @@ ErrorAccu Parser::parse_toplevel_loop()
         U(TokenWord) {}
         U(TokenWspace) {}
         U(TokenNumber) {}
+        U(TokenStringLiteral) {}
 #undef U
 #undef V
     };

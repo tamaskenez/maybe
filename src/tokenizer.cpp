@@ -1,8 +1,11 @@
 #include "tokenizer.h"
-#include "consts.h"
 
 #include <cmath>
 #include <climits>
+
+#include "consts.h"
+
+#include "fmt/printf.h"
 
 namespace maybe {
 
@@ -82,8 +85,8 @@ bool Tokenizer::try_read_from_inline_comment_after_first_char_read(char c)
         }
         if (UL_UNLIKELY(!is_allowed_char_in_comments(*maybe_c))) {
             emplace_error(
-                fmt::format("Invalid character in inline comment: 0x%02x",
-                            (uint8_t)*maybe_c),
+                fmt::sprintf("Invalid character in inline comment: 0x%02x",
+                             (uint8_t)*maybe_c),
                 fr.chars_read(), 1);
             eof_reached(true);
             return true;
@@ -116,8 +119,8 @@ void Tokenizer::start_reading_line_skip_empty_lines()
             }
             if (UL_UNLIKELY(!is_allowed_char_in_comments(*maybe_c))) {
                 emplace_error(
-                    fmt::format("Invalid character in shell comment: 0x%02x",
-                                (uint8_t)*maybe_c),
+                    fmt::sprintf("Invalid character in shell comment: 0x%02x",
+                                 (uint8_t)*maybe_c),
                     fr.chars_read(), 1);
                 eof_reached(true);
                 return;
@@ -180,7 +183,7 @@ void Tokenizer::start_reading_line_skip_empty_lines()
     // now it must be an ucnzc char
     if (UL_UNLIKELY(!is_ucnzc(*maybe_c))) {
         emplace_error(
-            fmt::format("Invalid character: 0x%02x", (uint8_t)*maybe_c),
+            fmt::sprintf("Invalid character: 0x%02x", (uint8_t)*maybe_c),
             fr.chars_read(), 1);
         eof_reached(true);
         return;
@@ -473,6 +476,43 @@ inline bool is_separator(char c)
     return false;
 }
 
+// call this after reading the backslash
+Maybe<char> Tokenizer::maybe_resolve_escape_sequence_in_interpreted_literal()
+{
+    auto maybe_c = fr.next_char();
+    if (!maybe_c) {
+        emplace_error("End-of-file in interpreted string literal",
+                      fr.chars_read() - current_line_start_pos, 1);
+        eof_reached(false);
+        return Nothing;
+    }
+    Maybe<char> result;
+    if (*maybe_c != '\'') {
+        for (const char* p = &c_tokenizer_escape_sequences[0]; *p; ++p) {
+            if (*p == *maybe_c) {
+                auto idx = p - &c_tokenizer_escape_sequences[0];
+                result = c_tokenizer_resolved_espace_sequences[idx];
+                break;
+            }
+        }
+    }
+    if (!result) {
+        if (isprint(*maybe_c)) {
+            emplace_error(
+                fmt::sprintf("Invalid escape sequence: \"\\%c\"", *maybe_c),
+                fr.chars_read() - current_line_start_pos, 1);
+        } else {
+            emplace_error(
+                fmt::sprintf(
+                    "Invalid escape sequence: raw char \\x%02x after backslash",
+                    *maybe_c),
+                fr.chars_read() - current_line_start_pos, 1);
+        }
+        eof_reached(false);
+    }
+    return result;
+}
+
 void Tokenizer::continue_reading_line(char c)
 {
     if (try_read_eol_after_first_char_read(c)) {
@@ -515,7 +555,7 @@ void Tokenizer::continue_reading_line(char c)
         return;
 
     if (UL_UNLIKELY(!is_ucnzc(c))) {
-        emplace_error(fmt::format("Invalid character: 0x%02x", (uint8_t)c),
+        emplace_error(fmt::sprintf("Invalid character: 0x%02x", (uint8_t)c),
                       fr.chars_read() - startcol, 1);
         eof_reached(true);
         return;
@@ -527,6 +567,40 @@ void Tokenizer::continue_reading_line(char c)
     } else if (isdigit(c)) {
         read_token_number(startcol, c);
         return;
+    } else if (c == '"') {
+        // interpreted string literal
+        string w;
+        for (;;) {
+            auto maybe_c = fr.next_char();
+            if (!maybe_c) {
+                emplace_error("End-of-file in interpreted string literal",
+                              fr.chars_read() - current_line_start_pos, 1);
+                eof_reached(false);
+                return;
+            } else if (*maybe_c < 32) {
+                emplace_error(
+                    fmt::sprintf("Invalid raw character in "
+                                 "interpreted string literal: \\x%02x",
+                                 *maybe_c),
+                    fr.chars_read() - current_line_start_pos, 1);
+                eof_reached(false);
+                return;
+            }
+            if (*maybe_c == '"') {
+                break;
+            } else if (*maybe_c == '\\') {
+                auto maybe_escaped_char =
+                    maybe_resolve_escape_sequence_in_interpreted_literal();
+                if (!maybe_escaped_char) {
+                    eof_reached(true);
+                    return;
+                }
+                w += *maybe_escaped_char;
+            } else {
+                w += *maybe_c;
+            }
+        }
+        fifo.emplace_back<TokenStringLiteral>(startcol, move(w));
     } else if (is_separator(c)) {
         fifo.emplace_back<TokenWord>(startcol, TokenWord::separator,
                                      string{1, c});

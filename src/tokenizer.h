@@ -35,6 +35,12 @@ struct TokenWord
     string s;
 };
 
+struct TokenStringLiteral
+{
+    int col;
+    string s;
+};
+
 using Nonnegative = variant<uint64_t, long double>;
 
 struct TokenNumber
@@ -48,6 +54,7 @@ using Token =
             TokenWord,
             TokenWspace,
             TokenNumber,
+            TokenStringLiteral,
             ErrorInSourceFile  // error is flattened into Token to avoid
                                // diffult-to-handle 2-level variant
             >;
@@ -118,6 +125,8 @@ private:
     void emplace_error(string_par msg, int startcol, int length);
     bool try_read_eol_after_first_char_read(char c);
     bool try_read_from_inline_comment_after_first_char_read(char c);
+    Maybe<char> maybe_resolve_escape_sequence_in_interpreted_literal();
+
     FileReader& fr;
     string filename;
 

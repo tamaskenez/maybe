@@ -73,6 +73,22 @@ ErrorAccu compile_file(string_par filename)
         printf("<%s>", x.s.c_str());
         ELSE_MATCH(TokenNumber)
         printf("#%s", visit(to_string_functor{}, x.value).c_str());
+        ELSE_MATCH(TokenStringLiteral)
+        printf("\"");
+        for (auto c : x.s) {
+            if (isprint(c))
+                printf("%c", c);
+            else
+                printf("\\x%02x", c);
+        }
+        printf("\"");
+        ELSE_MATCH(ErrorInSourceFile)
+        if (x.has_location()) {
+            printf("ERROR in %s: %s:%d:%d:%d\n", x.filename.c_str(),
+                   x.msg.c_str(), x.line_num, x.col, x.length);
+        } else {
+            printf("ERROR in %s: %s\n", x.filename.c_str(), x.msg.c_str());
+        }
         END_MATCH
     }
     printf("<EOF>\n");
