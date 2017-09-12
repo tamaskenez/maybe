@@ -15,8 +15,11 @@ private:
     Tokenizer& tokenizer;
 
     int current_indent;
+    int current_line_num;
 
     bool exit_loop = false;
     ErrorAccu error_accu;
+
+    friend struct BaseVisitor;
 };
 }
