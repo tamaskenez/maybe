@@ -66,12 +66,10 @@ ErrorAccu compile_file(string_par filename)
         if (x.inline_()) {
             printf(" ");
         } else {
-            string s('.', x.indent_level);
+            string s(x.indent_level, ' ');
             printf("\n%04d%s", x.line_num, s.c_str());
         }
-        ELSE_MATCH(TokenChar)
-        printf("[%c]", x.c);
-        ELSE_MATCH(TokenIdentifier)
+        ELSE_MATCH(TokenWord)
         printf("<%s>", x.s.c_str());
         ELSE_MATCH(TokenNumber)
         printf("#%s", visit(to_string_functor{}, x.value).c_str());

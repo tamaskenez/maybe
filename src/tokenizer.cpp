@@ -208,7 +208,8 @@ void Tokenizer::read_token_identifier(int startcol, string collector)
         } else
             break;
     }
-    fifo.emplace_back<TokenIdentifier>(startcol, move(collector));
+    fifo.emplace_back<TokenWord>(startcol, TokenWord::identifier,
+                                 move(collector));
 }
 
 // Call this after "0x" has been read
@@ -455,6 +456,23 @@ inline bool is_inline_wspace(char c)
     return c == c_ascii_tab || c == ' ';
 }
 
+inline bool is_operator(char c)
+{
+    for (const char* p = &c_token_operators[0]; *p; ++p) {
+        if (*p == c)
+            return true;
+    }
+    return false;
+}
+inline bool is_separator(char c)
+{
+    for (const char* p = &c_token_separators[0]; *p; ++p) {
+        if (*p == c)
+            return true;
+    }
+    return false;
+}
+
 void Tokenizer::continue_reading_line(char c)
 {
     if (try_read_eol_after_first_char_read(c)) {
@@ -509,8 +527,21 @@ void Tokenizer::continue_reading_line(char c)
     } else if (isdigit(c)) {
         read_token_number(startcol, c);
         return;
+    } else if (is_separator(c)) {
+        fifo.emplace_back<TokenWord>(startcol, TokenWord::separator,
+                                     string{1, c});
+    } else if (is_operator(c)) {
+        string w{1, c};
+        for (;;) {
+            auto maybe_c = fr.peek_next_char();
+            if (!maybe_c || !is_operator(*maybe_c))
+                break;
+            w += *maybe_c;
+            fr.advance();
+        }
+        fifo.emplace_back<TokenWord>(startcol, TokenWord::operator_, move(w));
     } else {
-        fifo.emplace_back<TokenChar>(startcol, c);
+        fifo.emplace_back<TokenWord>(startcol, TokenWord::other, string{1, c});
     }
 }
 }

@@ -33,9 +33,8 @@ ErrorAccu Parser::parse_toplevel_loop()
 #define U(X) void operator()(const X&)
 #define V(X) void operator()(const X& t)
 
-        U(TokenChar) {}
+        U(TokenWord) {}
         U(TokenWspace) {}
-        U(TokenIdentifier) {}
         U(TokenNumber) {}
 #undef U
 #undef V

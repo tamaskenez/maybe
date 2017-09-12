@@ -11,14 +11,8 @@ struct TokenWspace
 {
     bool inline_() const { return line_num == 0; }
     int line_num;      // 0 for inline whitespace, > 0 for whitespace between
-                       // continuation lines
+                       // lines
     int indent_level;  // valid if line_num > 0
-};
-
-struct TokenChar
-{
-    int col;
-    char c;
 };
 
 struct TokenEof
@@ -26,9 +20,18 @@ struct TokenEof
     bool aborted_due_to_error;
 };
 
-struct TokenIdentifier
+struct TokenWord
 {
+    enum Kind
+    {
+        identifier,
+        operator_,
+        separator,
+        other
+    };
+
     int col;
+    Kind kind;
     string s;
 };
 
@@ -42,9 +45,8 @@ struct TokenNumber
 
 using Token =
     variant<TokenEof,  // first must be a cheap class
-            TokenChar,
+            TokenWord,
             TokenWspace,
-            TokenIdentifier,
             TokenNumber,
             ErrorInSourceFile  // error is flattened into Token to avoid
                                // diffult-to-handle 2-level variant
