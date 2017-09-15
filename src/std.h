@@ -17,6 +17,7 @@
 #include "ul/string_par.h"
 #include "ul/span.h"
 #include "ul/check.h"
+#include "ul/ul.h"
 
 #include "fmt/ostream.h"
 

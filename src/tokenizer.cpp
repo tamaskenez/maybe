@@ -41,13 +41,13 @@ void Tokenizer::eof_reached(bool aborted_due_to_error)
                       fr.chars_read() - current_line_start_pos, 1);
     }
     had_eof = true;
-    fifo.emplace_back<TokenEof>(aborted_due_to_error);
+    fifo.emplace_back<TokenEof>(cur_col(), 1, aborted_due_to_error);
 }
 
-void Tokenizer::emplace_error(string_par msg, int startcol, int length)
+void Tokenizer::emplace_error(string_par msg, int tok_col, int length)
 {
-    fifo.emplace_back<ErrorInSourceFile>(filename, msg.str(), line_num,
-                                         startcol, length);
+    fifo.emplace_back<ErrorInSourceFile>(filename, msg.str(), line_num, tok_col,
+                                         length);
 }
 
 inline bool is_ucnzc(char c)
@@ -189,7 +189,7 @@ void Tokenizer::start_reading_line_skip_empty_lines()
         return;
     }
 
-    fifo.emplace_back<TokenWspace>(line_num, level);
+    fifo.emplace_back<TokenWspace>(1, cur_col(), line_num, level);
 
     continue_reading_line(*maybe_c);
 }
@@ -199,7 +199,7 @@ inline bool iswspace_but_not_newline(char c)
     return iswspace(c) && !(c == c_ascii_CR || c == c_ascii_LF);
 }
 
-void Tokenizer::read_token_identifier(int startcol, string collector)
+void Tokenizer::read_token_identifier(int tok_col, string collector)
 {
     // [alpha][alnum]* sequence
     // go until not alnum
@@ -211,8 +211,8 @@ void Tokenizer::read_token_identifier(int startcol, string collector)
         } else
             break;
     }
-    fifo.emplace_back<TokenWord>(startcol, TokenWord::identifier,
-                                 move(collector));
+    fifo.emplace_back<TokenWord>(tok_col, cur_col() - tok_col,
+                                 TokenWord::identifier, move(collector));
 }
 
 // Call this after "0x" has been read
@@ -221,7 +221,7 @@ void Tokenizer::read_token_identifier(int startcol, string collector)
 // adds a TokenUnsigned with zero value and reads a suffix (TokenIdentifier)
 // interpreting
 // the x_char as the first character of the suffix.
-void Tokenizer::read_hex_literal(int startcol, char x_char)
+void Tokenizer::read_hex_literal(int tok_col, char x_char)
 {
     // read until hex digits
     uint64_t hexnumber = 0;
@@ -249,21 +249,20 @@ void Tokenizer::read_hex_literal(int startcol, char x_char)
             break;
     }
     // Read either zero, some or too much digits
-    int length = fr.chars_read() - startcol;
+    int length = fr.chars_read() - current_line_start_pos - tok_col;
     if (UL_UNLIKELY(length <= 2)) {
         CHECK(length == 2);  // "0x"
         // add '0' TokenUnsigned and start new token with *maybe_x
-        fifo.emplace_back<TokenNumber>(startcol, 1, uint64_t{0});
-        read_token_identifier(startcol + 1, string{1, x_char});
+        fifo.emplace_back<TokenNumber>(tok_col, 1, uint64_t{0});
+        read_token_identifier(tok_col + 1, string{1, x_char});
         return;
     }
     if (UL_UNLIKELY(too_long)) {
-        fifo.emplace_back<ErrorInSourceFile>(filename,
-                                             "hex literal exceeds 8 bytes",
-                                             line_num, startcol, length);
+        fifo.emplace_back<ErrorInSourceFile>(
+            filename, "hex literal exceeds 8 bytes", line_num, tok_col, length);
     }
 
-    fifo.emplace_back<TokenNumber>(startcol, length, uint64_t{0});
+    fifo.emplace_back<TokenNumber>(tok_col, length, uint64_t{0});
 }
 
 // the input nneg_literal is the part of number already read,
@@ -323,7 +322,7 @@ string to_string(const Nonnegative& x)
         return fmt::format("{}", get<long double>(x));
 }
 
-void Tokenizer::read_token_number(int startcol, char first_char_digit)
+void Tokenizer::read_token_number(int tok_col, char first_char_digit)
 {
     // sequence of digits
     if (UL_UNLIKELY(first_char_digit == '0')) {
@@ -331,7 +330,7 @@ void Tokenizer::read_token_number(int startcol, char first_char_digit)
         auto maybe_x = fr.peek_next_char();
         if (maybe_x && (*maybe_x == 'x' || *maybe_x == 'X')) {
             fr.advance();
-            read_hex_literal(startcol, *maybe_x);
+            read_hex_literal(tok_col, *maybe_x);
             return;
         }
     }
@@ -378,15 +377,15 @@ void Tokenizer::read_token_number(int startcol, char first_char_digit)
                     if (UL_UNLIKELY(
                             holds_alternative<long double>(nl_exponent))) {
                         fifo.emplace_back<ErrorInSourceFile>(
-                            filename, "exponent is too high", line_num,
-                            startcol, fr.chars_read() - startcol);
+                            filename, "exponent is too high", line_num, tok_col,
+                            fr.chars_read() - current_line_start_pos - tok_col);
                         return;
                     }
                     uint64_t u_exponent = get<uint64_t>(nl_exponent);
                     if (u_exponent >= INT_MAX) {
                         fifo.emplace_back<ErrorInSourceFile>(
-                            filename, "exponent is too high", line_num,
-                            startcol, fr.chars_read() - startcol);
+                            filename, "exponent is too high", line_num, tok_col,
+                            fr.chars_read() - current_line_start_pos - tok_col);
                         return;
                     }
                     int exponent = (int)u_exponent;
@@ -406,23 +405,22 @@ void Tokenizer::read_token_number(int startcol, char first_char_digit)
     }
 
     if (holds_alternative<uint64_t>(nneg_literal)) {
-        fifo.emplace_back<TokenNumber>(startcol, fr.chars_read() - startcol,
+        fifo.emplace_back<TokenNumber>(tok_col, cur_col() - tok_col,
                                        nneg_literal);
     } else {
         long double x = get<long double>(nneg_literal);
         if (std::isnan(x)) {
-            fifo.emplace_back<ErrorInSourceFile>(filename, "invalid number",
-                                                 line_num, startcol,
-                                                 fr.chars_read() - startcol);
+            fifo.emplace_back<ErrorInSourceFile>(
+                filename, "invalid number", line_num, tok_col,
+                fr.chars_read() - current_line_start_pos - tok_col);
             return;
         } else if (std::isinf(x)) {
-            fifo.emplace_back<ErrorInSourceFile>(filename, "number overflow",
-                                                 line_num, startcol,
-                                                 fr.chars_read() - startcol);
+            fifo.emplace_back<ErrorInSourceFile>(
+                filename, "number overflow", line_num, tok_col,
+                fr.chars_read() - current_line_start_pos - tok_col);
             return;
         } else {
-            fifo.emplace_back<TokenNumber>(startcol, fr.chars_read() - startcol,
-                                           x);
+            fifo.emplace_back<TokenNumber>(tok_col, cur_col() - tok_col, x);
         }
     }
     if (!suffix.empty())
@@ -521,7 +519,7 @@ void Tokenizer::continue_reading_line(char c)
         return;
     }
 
-    int startcol = fr.chars_read();  // - 1 + 1
+    int tok_col = fr.chars_read() - current_line_start_pos;  // - 1 + 1
 
     // Following can be: <inline-wspace>+, inline comment or ucnzc
 
@@ -546,7 +544,7 @@ void Tokenizer::continue_reading_line(char c)
         }
         if (try_read_from_inline_comment_after_first_char_read(c))
             return;
-        fifo.emplace_back<TokenWspace>(0, 0);
+        fifo.emplace_back<TokenWspace>(tok_col, cur_col() - tok_col, 0, 0);
         continue_reading_line(*maybe_c);  // tail-recurse
         return;
     }
@@ -556,16 +554,16 @@ void Tokenizer::continue_reading_line(char c)
 
     if (UL_UNLIKELY(!is_ucnzc(c))) {
         emplace_error(fmt::sprintf("Invalid character: 0x%02x", (uint8_t)c),
-                      fr.chars_read() - startcol, 1);
+                      fr.chars_read() - current_line_start_pos - tok_col, 1);
         eof_reached(true);
         return;
     }
 
     if (isalpha(c)) {
         // [alpha][alnum]* sequence
-        read_token_identifier(startcol, string{1, c});
+        read_token_identifier(tok_col, string{1, c});
     } else if (isdigit(c)) {
-        read_token_number(startcol, c);
+        read_token_number(tok_col, c);
         return;
     } else if (c == '"') {
         // interpreted string literal
@@ -600,10 +598,11 @@ void Tokenizer::continue_reading_line(char c)
                 w += *maybe_c;
             }
         }
-        fifo.emplace_back<TokenStringLiteral>(startcol, move(w));
+        fifo.emplace_back<TokenStringLiteral>(tok_col, cur_col() - tok_col,
+                                              move(w));
     } else if (is_separator(c)) {
-        fifo.emplace_back<TokenWord>(startcol, TokenWord::separator,
-                                     string{1, c});
+        fifo.emplace_back<TokenWord>(tok_col, cur_col() - tok_col,
+                                     TokenWord::separator, string{1, c});
     } else if (is_operator(c)) {
         string w{1, c};
         for (;;) {
@@ -613,9 +612,11 @@ void Tokenizer::continue_reading_line(char c)
             w += *maybe_c;
             fr.advance();
         }
-        fifo.emplace_back<TokenWord>(startcol, TokenWord::operator_, move(w));
+        fifo.emplace_back<TokenWord>(tok_col, cur_col() - tok_col,
+                                     TokenWord::operator_, move(w));
     } else {
-        fifo.emplace_back<TokenWord>(startcol, TokenWord::other, string{1, c});
+        fifo.emplace_back<TokenWord>(tok_col, cur_col() - tok_col,
+                                     TokenWord::other, string{1, c});
     }
 }
 }

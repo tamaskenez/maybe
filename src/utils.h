@@ -45,11 +45,12 @@ Y& right(Either<X, Y>& v)
 struct ErrorAccu
 {
     void operator+=(const ErrorAccu& x) { num_errors += x.num_errors; }
-    int num_errors = 0;
+    int num_errors;
 };
 struct ErrorInSourceFile
 {
     bool has_location() const { return line_num > 0 && col > 0; }
+
     string filename;
     string msg;
     int line_num = 0;  // 1-based

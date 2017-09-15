@@ -46,7 +46,7 @@ ErrorAccu compile_file(string_par filename)
     Tokenizer tokenizer{fr, filename.str()};
 
 #if 1
-    Parser parser{tokenizer};
+    Parser parser{tokenizer, filename.str()};
     return parser.parse_toplevel_loop();
 #else
     tokenizer.load_at_least(INT_MAX);

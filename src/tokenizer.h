@@ -10,6 +10,7 @@ namespace maybe {
 struct TokenWspace
 {
     bool inline_() const { return line_num == 0; }
+    int col, length;
     int line_num;      // 0 for inline whitespace, > 0 for whitespace between
                        // lines
     int indent_level;  // valid if line_num > 0
@@ -17,6 +18,7 @@ struct TokenWspace
 
 struct TokenEof
 {
+    int col, length;
     bool aborted_due_to_error;
 };
 
@@ -30,14 +32,14 @@ struct TokenWord
         other
     };
 
-    int col;
+    int col, length;
     Kind kind;
     string s;
 };
 
 struct TokenStringLiteral
 {
-    int col;
+    int col, length;
     string s;
 };
 
@@ -110,7 +112,6 @@ struct Tokenizer
 
 private:
     void pop_front();
-    void f();
 
     void read_indent();
     void read_within_line();
@@ -126,6 +127,7 @@ private:
     bool try_read_eol_after_first_char_read(char c);
     bool try_read_from_inline_comment_after_first_char_read(char c);
     Maybe<char> maybe_resolve_escape_sequence_in_interpreted_literal();
+    int cur_col() const { return fr.chars_read() - current_line_start_pos; }
 
     FileReader& fr;
     string filename;
