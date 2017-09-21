@@ -47,6 +47,7 @@ gitit () {
         if [[ -n "$branch" ]]; then
             git checkout "$branch"
         fi
+        git fetch --all -p
         git pull --ff-only
         cd -
     fi
@@ -58,6 +59,7 @@ cmakeit () {
     use_ide_generator=0
     config_build_type=
     if [[ $1 == "--try-use-ide" ]]; then
+        shift
         if [[ "$HAS_IDE_GENERATOR" == "1" ]]; then
             use_ide_generator=1
             config_build_type=-DCMAKE_BUILD_TYPE=Release
@@ -71,13 +73,15 @@ cmakeit () {
             cmake "-H$dir" "-B$dir/b" \
             -DCMAKE_CXX_STANDARD=$CMAKE_CXX_STANDARD \
             -DCMAKE_INSTALL_PREFIX=$ROOT/i \
-            $IDE_GENERATOR)
+            $IDE_GENERATOR \
+            "$@")
     else
         (set -x; \
             cmake "-H$dir" "-B$dir/b" \
             -DCMAKE_CXX_STANDARD=$CMAKE_CXX_STANDARD \
             -DCMAKE_INSTALL_PREFIX=$ROOT/i \
-            $config_build_type)
+            $config_build_type \
+            "$@")
     fi
     echo -e "\n-- Building [$name] with cmake"
     if [[ $use_ide_generator == "1" ]]; then
@@ -109,7 +113,7 @@ gitit "https://github.com/tamaskenez/Optional.git" "Optional"
 
 # cmakeit "llvm"
 cmakeit "nowide-standalone"
-cmakeit "fmt"
+cmakeit "fmt" -DFMT_TEST=0 -DFMT_DOC=0
 cmakeit "variant"
 cmakeit "Optional"
 cmakeit "microlib" --try-use-ide

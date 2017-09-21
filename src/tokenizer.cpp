@@ -9,7 +9,7 @@
 
 namespace maybe {
 
-const Token& Tokenizer::get_next_token()
+Token& Tokenizer::get_next_token()
 {
     if (UL_LIKELY(!fifo.empty()))
         fifo.pop_front();

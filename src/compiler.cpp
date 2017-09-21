@@ -16,13 +16,68 @@ struct to_string_functor
     }
 };
 
+class TokenStreamPrinter
+{
+public:
+    TokenStreamPrinter(TokenSource&& token_source)
+        : token_source(move(token_source))
+    {
+    }
+    Token& get_next_token()
+    {
+        auto& token = token_source();
+        BEGIN_VISIT_VARIANT_WITH(x)
+        IF_VARIANT_IS(x, TokenWspace)
+        {
+            if (x.inline_()) {
+                printf(" ");
+            } else {
+                string s(x.indent_level, ' ');
+                printf("\n%04d%s", x.line_num, s.c_str());
+            }
+        }
+        else IF_VARIANT_IS(x, TokenWord) { printf("<%s>", x.s.c_str()); }
+        else IF_VARIANT_IS(x, TokenNumber)
+        {
+            printf("#%s", visit(to_string_functor{}, x.value).c_str());
+        }
+        else IF_VARIANT_IS(x, TokenStringLiteral)
+        {
+            printf("\"");
+            for (auto c : x.s) {
+                if (isprint(c))
+                    printf("%c", c);
+                else
+                    printf("\\x%02x", c);
+            }
+            printf("\"");
+        }
+        else IF_VARIANT_IS(x, ErrorInSourceFile)
+        {
+            if (x.has_location()) {
+                printf("ERROR in %s: %s:%d:%d:%d\n", x.filename.c_str(),
+                       x.msg.c_str(), x.line_num, x.col, x.length);
+            } else {
+                printf("ERROR in %s: %s\n", x.filename.c_str(), x.msg.c_str());
+            }
+        }
+        else IF_VARIANT_IS(x, TokenEof) { printf("<EOF>\n"); }
+        else VISIT_VARIANT_ERROR_NOT_EXHAUSTIVE(x);
+        END_VISIT_VARIANT(token)
+        return token;
+    }
+
+private:
+    TokenSource token_source;
+};
+
 // true on success
-ErrorAccu compile_file(string_par filename)
+bool compile_file(string_par filename)
 {
     auto lr = FileReader::new_(filename.c_str());
     if (is_left(lr)) {
         report_error(left(lr), "can't open file '{}'", filename.c_str());
-        return ErrorAccu{1};
+        return false;
     }
     auto fr = move(right(lr));
     // skip UTF-8 BOM
@@ -45,62 +100,30 @@ ErrorAccu compile_file(string_par filename)
     }
     Tokenizer tokenizer{fr, filename.str()};
 
-#if 1
-    Parser parser{tokenizer, filename.str()};
-    return parser.parse_toplevel_loop();
-#else
-    tokenizer.load_at_least(INT_MAX);
-    for (int i = 0; i < tokenizer.fifo.size(); ++i) {
-        const auto& t = tokenizer.fifo.at(i);
-#define MATCH(T)                   \
-    if (holds_alternative<T>(t)) { \
-        auto& x = get<T>(t);
-#define ELSE_MATCH(T)                 \
-    }                                 \
-    else if (holds_alternative<T>(t)) \
-    {                                 \
-        auto& x = get<T>(t);
-#define END_MATCH }
-
-        MATCH(TokenWspace)
-        if (x.inline_()) {
-            printf(" ");
-        } else {
-            string s(x.indent_level, ' ');
-            printf("\n%04d%s", x.line_num, s.c_str());
-        }
-        ELSE_MATCH(TokenWord)
-        printf("<%s>", x.s.c_str());
-        ELSE_MATCH(TokenNumber)
-        printf("#%s", visit(to_string_functor{}, x.value).c_str());
-        ELSE_MATCH(TokenStringLiteral)
-        printf("\"");
-        for (auto c : x.s) {
-            if (isprint(c))
-                printf("%c", c);
-            else
-                printf("\\x%02x", c);
-        }
-        printf("\"");
-        ELSE_MATCH(ErrorInSourceFile)
-        if (x.has_location()) {
-            printf("ERROR in %s: %s:%d:%d:%d\n", x.filename.c_str(),
-                   x.msg.c_str(), x.line_num, x.col, x.length);
-        } else {
-            printf("ERROR in %s: %s\n", x.filename.c_str(), x.msg.c_str());
-        }
-        END_MATCH
+    TokenSource ts1, ts2;
+    unique_ptr<TokenStreamPrinter> tsp;
+    unique_ptr<Parser> parser;
+    TokenSource&& tokens_from_tokenizer = [&tokenizer]() -> Token& {
+        return tokenizer.get_next_token();
+    };
+    if (false) {
+        parser =
+            make_unique<Parser>(move(tokens_from_tokenizer), filename.str());
+    } else {
+        tsp = make_unique<TokenStreamPrinter>(move(tokens_from_tokenizer));
+        parser = make_unique<Parser>(
+            [&tsp]() -> Token& { return tsp->get_next_token(); },
+            filename.str());
     }
-    printf("<EOF>\n");
-    return ErrorAccu{};
-#endif
+    return parser->parse_toplevel_loop();
 }
 
 int run_compiler(const CommandLine& cl)
 {
-    ErrorAccu ea;
+    bool ok = true;
     for (auto& f : cl.files)
-        ea += compile_file(f);
-    return ea.num_errors == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+        if (!compile_file(f))
+            ok = false;
+    return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 }

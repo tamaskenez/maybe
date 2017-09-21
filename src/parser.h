@@ -7,17 +7,17 @@ namespace maybe {
 
 struct Parser
 {
-    Parser(Tokenizer& tokenizer, string filename)
-        : tokenizer(tokenizer), filename(move(filename))
+    Parser(TokenSource&& token_source, string filename)
+        : token_source(move(token_source)), filename(move(filename))
     {
     }
 
-    ErrorAccu parse_toplevel_loop();
+    bool parse_toplevel_loop();
 
 private:
     void skip_until_indentation_less_or_equal(int linenum);
 
-    Tokenizer& tokenizer;
+    TokenSource token_source;
 
     int current_indent;
     int current_line_num;

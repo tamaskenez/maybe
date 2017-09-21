@@ -21,6 +21,23 @@
 
 #include "fmt/ostream.h"
 
+template <class T>
+struct always_false : std::false_type
+{
+};
+
+#define BEGIN_VISIT_VARIANT_WITH(ARG) visit([&](auto&&ARG){
+#define IF_VARIANT_IS(ARG, SUBTYPE)                                  \
+    if                                                               \
+    constexpr(std::is_same<typename std::decay<decltype(ARG)>::type, \
+                           SUBTYPE>::value)
+#define END_VISIT_VARIANT(VARIANT) \
+    }, VARIANT);
+#define VISIT_VARIANT_ERROR_NOT_EXHAUSTIVE(ARG)                        \
+    static_assert(                                                     \
+        always_false<typename std::decay<decltype(ARG)>::type>::value, \
+        "match is not exhaustive");
+
 namespace ul {
 inline std::ostream& operator<<(std::ostream& os, cspan d)
 {
@@ -37,6 +54,7 @@ using std::move;
 using std::array;
 using std::unique_ptr;
 using std::deque;
+using std::make_unique;
 using mpark::variant;
 using mpark::holds_alternative;
 using mpark::visit;

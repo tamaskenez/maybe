@@ -104,7 +104,7 @@ struct Tokenizer
     {
     }
 
-    const Token& get_next_token();
+    Token& get_next_token();
     void load_at_least(int n);
     void read_next();
 
@@ -138,4 +138,6 @@ private:
     string strtmp;
     Maybe<char> maybe_file_indent_char;
 };
+
+using TokenSource = std::function<Token&()>;
 }
