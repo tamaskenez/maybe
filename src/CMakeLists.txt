@@ -13,6 +13,7 @@ add_executable(maybe
     utils.cpp globals.cpp
     tokenizer.cpp
     parser.cpp
+    beginendtokeninserter.cpp
 )
 
 target_link_libraries(maybe PRIVATE

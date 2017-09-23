@@ -15,12 +15,12 @@ bool Parser::parse_toplevel_loop()
     do {
         auto& token = token_source();
         BEGIN_VISIT_VARIANT_WITH(t)
-        IF_VARIANT_IS(t, ErrorInSourceFile)
+        IF_VISITED_VARIANT_IS(t, ErrorInSourceFile)
         {
             report_error(t);
             ++error_count;
         }
-        else IF_VARIANT_IS(t, TokenEof) { exit_loop = true; }
+        else IF_VISITED_VARIANT_IS(t, TokenEof) { exit_loop = true; }
         END_VISIT_VARIANT(token)
     } while (!exit_loop);
     return error_count == 0;

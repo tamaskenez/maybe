@@ -27,10 +27,11 @@ struct always_false : std::false_type
 };
 
 #define BEGIN_VISIT_VARIANT_WITH(ARG) visit([&](auto&&ARG){
-#define IF_VARIANT_IS(ARG, SUBTYPE)                                  \
-    if                                                               \
-    constexpr(std::is_same<typename std::decay<decltype(ARG)>::type, \
-                           SUBTYPE>::value)
+#define VISITED_VARIANT_IS(ARG, SUBTYPE) \
+    (std::is_same<typename std::decay<decltype(ARG)>::type, SUBTYPE>::value)
+#define IF_VISITED_VARIANT_IS(ARG, SUBTYPE) \
+    if                                      \
+    constexpr(VISITED_VARIANT_IS(ARG, SUBTYPE))
 #define END_VISIT_VARIANT(VARIANT) \
     }, VARIANT);
 #define VISIT_VARIANT_ERROR_NOT_EXHAUSTIVE(ARG)                        \

@@ -4,6 +4,7 @@
 #include "filereader.h"
 #include "tokenizer.h"
 #include "parser.h"
+#include "beginendtokeninserter.h"
 
 namespace maybe {
 
@@ -27,7 +28,7 @@ public:
     {
         auto& token = token_source();
         BEGIN_VISIT_VARIANT_WITH(x)
-        IF_VARIANT_IS(x, TokenWspace)
+        IF_VISITED_VARIANT_IS(x, TokenWspace)
         {
             if (x.inline_()) {
                 printf(" ");
@@ -36,12 +37,15 @@ public:
                 printf("\n%04d%s", x.line_num, s.c_str());
             }
         }
-        else IF_VARIANT_IS(x, TokenWord) { printf("<%s>", x.s.c_str()); }
-        else IF_VARIANT_IS(x, TokenNumber)
+        else IF_VISITED_VARIANT_IS(x, TokenWord)
+        {
+            printf("<%s>", x.s.c_str());
+        }
+        else IF_VISITED_VARIANT_IS(x, TokenNumber)
         {
             printf("#%s", visit(to_string_functor{}, x.value).c_str());
         }
-        else IF_VARIANT_IS(x, TokenStringLiteral)
+        else IF_VISITED_VARIANT_IS(x, TokenStringLiteral)
         {
             printf("\"");
             for (auto c : x.s) {
@@ -52,7 +56,7 @@ public:
             }
             printf("\"");
         }
-        else IF_VARIANT_IS(x, ErrorInSourceFile)
+        else IF_VISITED_VARIANT_IS(x, ErrorInSourceFile)
         {
             if (x.has_location()) {
                 printf("ERROR in %s: %s:%d:%d:%d\n", x.filename.c_str(),
@@ -61,7 +65,23 @@ public:
                 printf("ERROR in %s: %s\n", x.filename.c_str(), x.msg.c_str());
             }
         }
-        else IF_VARIANT_IS(x, TokenEof) { printf("<EOF>\n"); }
+        else IF_VISITED_VARIANT_IS(x, TokenEof) { printf("<EOF>\n"); }
+        else IF_VISITED_VARIANT_IS(x, TokenImplicit)
+        {
+            switch (x.kind) {
+                case TokenImplicit::sequencing:
+                    printf("\n$;");
+                    break;
+                case TokenImplicit::begin_block:
+                    printf("\n${");
+                    break;
+                case TokenImplicit::end_block:
+                    printf("\n$}");
+                    break;
+                default:
+                    CHECK(false);
+            }
+        }
         else VISIT_VARIANT_ERROR_NOT_EXHAUSTIVE(x);
         END_VISIT_VARIANT(token)
         return token;
@@ -103,8 +123,10 @@ bool compile_file(string_par filename)
     TokenSource ts1, ts2;
     unique_ptr<TokenStreamPrinter> tsp;
     unique_ptr<Parser> parser;
-    TokenSource&& tokens_from_tokenizer = [&tokenizer]() -> Token& {
-        return tokenizer.get_next_token();
+    BeginEndTokenInserter beti(
+        [&tokenizer]() -> Token& { return tokenizer.get_next_token(); });
+    TokenSource&& tokens_from_tokenizer = [&beti]() -> Token& {
+        return beti.get_next_token();
     };
     if (false) {
         parser =

@@ -5,9 +5,11 @@ namespace maybe {
 static const char* const c_program_name = "maybe";
 
 // things to tune
-static const int c_filereader_read_buf_capacity = 65000;
+static const int c_filereader_read_buf_capacity =
+    65000;  // chars read together in one batch from the source files
 static const int c_tokenizer_batch_size =
     10;  // number of tokens read in one batch
+static const int c_begin_end_token_inserter_initial_stack_capacity = 10;
 
 // tokenizer/parser
 const char c_token_shell_comment = '#';

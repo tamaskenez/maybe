@@ -16,6 +16,19 @@ struct TokenWspace
     int indent_level;  // valid if line_num > 0
 };
 
+struct TokenImplicit
+{
+    enum Kind
+    {
+        sequencing,
+        begin_block,
+        end_block,
+    };
+    int col, length;
+    int line_num;
+    Kind kind;
+};
+
 struct TokenEof
 {
     int col, length;
@@ -57,6 +70,7 @@ using Token =
             TokenWspace,
             TokenNumber,
             TokenStringLiteral,
+            TokenImplicit,
             ErrorInSourceFile  // error is flattened into Token to avoid
                                // diffult-to-handle 2-level variant
             >;
