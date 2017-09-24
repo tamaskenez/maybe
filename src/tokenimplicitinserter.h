@@ -6,10 +6,10 @@
 #include "tokenizer.h"
 
 namespace maybe {
-class BeginEndTokenInserter
+class TokenImplicitInserter
 {
 public:
-    BeginEndTokenInserter(TokenSource&& token_source)
+    TokenImplicitInserter(TokenSource&& token_source)
         : token_source(token_source)
     {
         stack.reserve(c_begin_end_token_inserter_initial_stack_capacity);

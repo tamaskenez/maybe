@@ -4,7 +4,7 @@
 #include "filereader.h"
 #include "tokenizer.h"
 #include "parser.h"
-#include "beginendtokeninserter.h"
+#include "tokenimplicitinserter.h"
 
 namespace maybe {
 
@@ -123,7 +123,7 @@ bool compile_file(string_par filename)
     TokenSource ts1, ts2;
     unique_ptr<TokenStreamPrinter> tsp;
     unique_ptr<Parser> parser;
-    BeginEndTokenInserter beti(
+    TokenImplicitInserter beti(
         [&tokenizer]() -> Token& { return tokenizer.get_next_token(); });
     TokenSource&& tokens_from_tokenizer = [&beti]() -> Token& {
         return beti.get_next_token();

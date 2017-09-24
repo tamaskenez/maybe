@@ -24,7 +24,7 @@ struct TokenImplicit
         begin_block,
         end_block,
     };
-    int col, length;
+    int col;
     int line_num;
     Kind kind;
 };
@@ -32,6 +32,7 @@ struct TokenImplicit
 struct TokenEof
 {
     int col, length;
+    int line_num;
     bool aborted_due_to_error;
 };
 
