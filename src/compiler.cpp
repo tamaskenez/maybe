@@ -82,7 +82,7 @@ public:
                     CHECK(false);
             }
         }
-        else VISIT_VARIANT_ERROR_NOT_EXHAUSTIVE(x);
+        else ERROR_VARIANT_VISIT_NOT_EXHAUSTIVE(x);
         END_VISIT_VARIANT(token)
         return token;
     }

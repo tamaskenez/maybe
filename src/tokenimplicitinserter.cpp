@@ -82,7 +82,7 @@ Token& TokenImplicitInserter::get_next_token()
         }
         fifo.emplace_back<TokenEof>(x);
     }
-    else VISIT_VARIANT_ERROR_NOT_EXHAUSTIVE(x);
+    else ERROR_VARIANT_VISIT_NOT_EXHAUSTIVE(x);
     END_VISIT_VARIANT(token)
     return fifo.empty() ? token : fifo.front();
 }

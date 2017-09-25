@@ -66,7 +66,7 @@ struct TokenNumber
 };
 
 using Token =
-    variant<TokenEof,  // first must be a cheap class
+    variant<TokenEof,
             TokenWord,
             TokenWspace,
             TokenNumber,

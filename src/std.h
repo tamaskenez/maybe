@@ -34,7 +34,7 @@ struct always_false : std::false_type
     constexpr(VISITED_VARIANT_IS(ARG, SUBTYPE))
 #define END_VISIT_VARIANT(VARIANT) \
     }, VARIANT);
-#define VISIT_VARIANT_ERROR_NOT_EXHAUSTIVE(ARG)                        \
+#define ERROR_VARIANT_VISIT_NOT_EXHAUSTIVE(ARG)                        \
     static_assert(                                                     \
         always_false<typename std::decay<decltype(ARG)>::type>::value, \
         "match is not exhaustive");
