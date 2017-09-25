@@ -16,7 +16,8 @@ struct Parser
 
 private:
     void skip_until_indentation_less_or_equal(int linenum);
-
+    void parse_expression_starting_with(Token& token);
+    void parse_definition_after_plus();
     TokenSource token_source;
 
     int current_indent;

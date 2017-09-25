@@ -8,6 +8,15 @@ namespace maybe {
                                        x.length});
 #endif
 
+void Parser::parse_expression_starting_with(Token& token)
+{
+    CHECK(false);
+}
+void Parser::parse_definition_after_plus()
+{
+    CHECK(false);
+}
+
 bool Parser::parse_toplevel_loop()
 {
     int error_count = 0;
@@ -15,11 +24,33 @@ bool Parser::parse_toplevel_loop()
     do {
         auto& token = token_source();
         BEGIN_VISIT_VARIANT_WITH(t)
-        IF_VISITED_VARIANT_IS(t, TokenWord) {}
-        else IF_VISITED_VARIANT_IS(t, TokenWspace) {}
-        else IF_VISITED_VARIANT_IS(t, TokenNumber) {}
-        else IF_VISITED_VARIANT_IS(t, TokenStringLiteral) {}
-        else IF_VISITED_VARIANT_IS(t, TokenImplicit) {}
+        IF_VISITED_VARIANT_IS(t, TokenWord)
+        {
+            switch (t.kind) {
+                case TokenWord::identifier:
+                case TokenWord::separator:
+                case TokenWord::other:
+                    parse_expression_starting_with(token);
+                    break;
+                case TokenWord::operator_:
+                    if (t.s == "+") {
+                        parse_definition_after_plus();
+                    } else
+                        parse_expression_starting_with(token);
+                    break;
+                default:
+                    CHECK(false);
+            }
+        }
+        else if constexpr(VISITED_VARIANT_IS(t, TokenWspace) ||
+                          VISITED_VARIANT_IS(t, TokenImplicit))
+        { /* do nothing */
+        }
+        else if constexpr(VISITED_VARIANT_IS(t, TokenNumber) ||
+                          VISITED_VARIANT_IS(t, TokenStringLiteral))
+        {
+            parse_expression_starting_with(token);
+        }
         else IF_VISITED_VARIANT_IS(t, ErrorInSourceFile)
         {
             report_error(t);
