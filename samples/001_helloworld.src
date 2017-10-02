@@ -1,7 +1,21 @@
 +fn println: Slice byte -> ()
-+fn println x
++ println = x -> 
     if #x > 0
         clang.printf(c"%.*s\n", cast int #x, Address.from(x 0))
 
 println "Hello, world!"
 println("Hello, world!")
+
+- skip inline ws
+- must be TokenWord{identifier, "fn"}
+- skip inline ws
+- must be TokenWord{identifier}
+  name = TokenWord.s
+if TokenWord{separator, ":"}
+    read function type
+else
+    skip inline ws -> count
+    if count = 0
+        read TokenWord{"("}
+        read parented fargdecl
+        read TokenWord{")"}
