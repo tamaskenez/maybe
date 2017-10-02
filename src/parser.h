@@ -5,6 +5,17 @@
 
 namespace maybe {
 
+using AstNodeId = int;
+
+struct AstNode
+{
+};
+
+struct Ast
+{
+    deque<AstNode> nodes;
+};
+
 struct Parser
 {
     Parser(TokenSource&& token_source, string filename)
@@ -16,8 +27,9 @@ struct Parser
 
 private:
     void skip_until_indentation_less_or_equal(int linenum);
-    void parse_expression_starting_with(Token& token);
-    void parse_definition_after_plus();
+    Either<ErrorInSourceFile, AstNode> parse_expression_starting_with(
+        Token& token);
+    Either<ErrorInSourceFile, AstNode> parse_definition_after_plus();
     TokenSource token_source;
 
     int current_indent;

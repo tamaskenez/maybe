@@ -8,13 +8,22 @@ namespace maybe {
                                        x.length});
 #endif
 
-void Parser::parse_expression_starting_with(Token& token)
+Either<ErrorInSourceFile, AstNode> Parser::parse_expression_starting_with(
+    Token& token)
 {
     CHECK(false);
 }
-void Parser::parse_definition_after_plus()
+
+#define VARIANT_GET_IF_BLOCK(SUBTYPE, VAR) if (auto px = get_if<SUBTYPE>(&VAR))
+
+Either<ErrorInSourceFile, AstNode> Parser::parse_definition_after_plus()
 {
-    CHECK(false);
+    auto& token = token_source();
+    VARIANT_GET_IF_BLOCK(TokenWord, token)
+    {
+        if (px->s == "fn") {
+        }
+    }
 }
 
 bool Parser::parse_toplevel_loop()

@@ -63,6 +63,7 @@ using mpark::get;
 using mpark::monostate;
 using mpark::in_place_type;
 using mpark::in_place_aggr_type;
+using mpark::get_if;
 
 template <class T>
 using Maybe = std::experimental::optional<T>;
