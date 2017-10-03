@@ -54,6 +54,8 @@ using std::system_category;
 using std::move;
 using std::array;
 using std::unique_ptr;
+template <class T>
+using uptr = std::unique_ptr<T>;
 using std::deque;
 using std::make_unique;
 using mpark::variant;

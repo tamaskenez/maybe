@@ -121,21 +121,20 @@ bool compile_file(string_par filename)
     Tokenizer tokenizer{fr, filename.str()};
 
     TokenSource ts1, ts2;
-    unique_ptr<TokenStreamPrinter> tsp;
-    unique_ptr<Parser> parser;
+    uptr<TokenStreamPrinter> tsp;
+    uptr<Parser> parser;
     TokenImplicitInserter beti(
         [&tokenizer]() -> Token& { return tokenizer.get_next_token(); });
     TokenSource&& tokens_from_tokenizer = [&beti]() -> Token& {
         return beti.get_next_token();
     };
     if (false) {
-        parser =
-            make_unique<Parser>(move(tokens_from_tokenizer), filename.str());
+        parser = Parser::new_(move(tokens_from_tokenizer), filename.str());
     } else {
         tsp = make_unique<TokenStreamPrinter>(move(tokens_from_tokenizer));
-        parser = make_unique<Parser>(
-            [&tsp]() -> Token& { return tsp->get_next_token(); },
-            filename.str());
+        parser =
+            Parser::new_([&tsp]() -> Token& { return tsp->get_next_token(); },
+                         filename.str());
     }
     return parser->parse_toplevel_loop();
 }

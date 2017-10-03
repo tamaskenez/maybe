@@ -29,6 +29,9 @@ int main(int argc, char* argv[])
         if (cl.help) {
             fmt::print(c_usage_text, c_program_name);
             result = EXIT_SUCCESS;
+        } else if (cl.files.empty()) {
+            report_error("No input files.");
+            result = EXIT_FAILURE;
         } else
             result = run_compiler(cl);
         return result;

@@ -49,6 +49,21 @@ struct ErrorAccu
 };
 struct ErrorInSourceFile
 {
+    static ErrorInSourceFile from_flc(string msg,
+                                      string filename,
+                                      int line_num,
+                                      int col)
+    {
+        return ErrorInSourceFile{move(msg), move(filename), line_num, col, 0};
+    }
+    static ErrorInSourceFile from_flcl(string msg,
+                                       string filename,
+                                       int line_num,
+                                       int col,
+                                       int len)
+    {
+        return ErrorInSourceFile{move(msg), move(filename), line_num, col, len};
+    }
     bool has_location() const { return line_num > 0 && col > 0; }
 
     string filename;

@@ -1,5 +1,10 @@
-+fn println: Slice byte -> ()
-+ println = x -> 
+
+     
+
+// yeah
+
+
++fn println(x: Slice byte) -> ()
     if #x > 0
         clang.printf(c"%.*s\n", cast int #x, Address.from(x 0))
 

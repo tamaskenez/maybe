@@ -68,7 +68,7 @@ bool Tokenizer::try_read_from_inline_comment_after_first_char_read(char c)
         return false;
     auto maybe_c = fr.peek_next_char();
     static_assert(c_token_inline_comment.size() == 2, "");
-    if (UL_LIKELY(!maybe_c || *maybe_c == c_token_inline_comment[1]))
+    if (UL_LIKELY(!maybe_c || *maybe_c != c_token_inline_comment[1]))
         return false;
 
     fr.advance();
@@ -254,7 +254,7 @@ void Tokenizer::read_hex_literal(int tok_col, char x_char)
         CHECK(length == 2);  // "0x"
         // add '0' TokenUnsigned and start new token with *maybe_x
         fifo.emplace_back<TokenNumber>(tok_col, 1, uint64_t{0});
-        read_token_identifier(tok_col + 1, string{1, x_char});
+        read_token_identifier(tok_col + 1, string(1, x_char));
         return;
     }
     if (UL_UNLIKELY(too_long)) {
@@ -561,7 +561,7 @@ void Tokenizer::continue_reading_line(char c)
 
     if (isalpha(c)) {
         // [alpha][alnum]* sequence
-        read_token_identifier(tok_col, string{1, c});
+        read_token_identifier(tok_col, string(1, c));
     } else if (isdigit(c)) {
         read_token_number(tok_col, c);
         return;
@@ -602,9 +602,9 @@ void Tokenizer::continue_reading_line(char c)
                                               move(w));
     } else if (is_separator(c)) {
         fifo.emplace_back<TokenWord>(tok_col, cur_col() - tok_col,
-                                     TokenWord::separator, string{1, c});
+                                     TokenWord::separator, string(1, c));
     } else if (is_operator(c)) {
-        string w{1, c};
+        string w(1, c);
         for (;;) {
             auto maybe_c = fr.peek_next_char();
             if (!maybe_c || !is_operator(*maybe_c))
@@ -616,7 +616,87 @@ void Tokenizer::continue_reading_line(char c)
                                      TokenWord::operator_, move(w));
     } else {
         fifo.emplace_back<TokenWord>(tok_col, cur_col() - tok_col,
-                                     TokenWord::other, string{1, c});
+                                     TokenWord::other, string(1, c));
     }
+}
+
+string to_string(const TokenWspace&)
+{
+    return "<WSPC>";
+}
+
+string to_string(const TokenImplicit& x)
+{
+    switch (x.kind) {
+        case TokenImplicit::sequencing:
+            return "<Impl;>";
+        case TokenImplicit::begin_block:
+            return "<Impl{>";
+        case TokenImplicit::end_block:
+            return "<Impl}>";
+        default:
+            CHECK(false);
+            return "<internal error>";
+    }
+}
+
+string to_string(const TokenEof&)
+{
+    return "<EOF>";
+}
+
+string to_string(const TokenWord& x)
+{
+    return "<Word:" + x.s + ">";
+}
+string to_string(const TokenStringLiteral& x)
+{
+    return "\"" + x.s + "\"";
+}
+string to_string(const TokenNumber&)
+{
+    return "#";
+}
+string to_string(const Token& x)
+{
+    return visit([](auto&& sx) -> string { return to_string(sx); }, x);
+}
+
+int col(const Token& t)
+{
+    return visit([](auto&& x) -> int { return x.col; }, t);
+}
+
+int length(const Token& t)
+{
+    return visit(
+        [](auto&& x) -> int {
+            if
+                constexpr(VISITED_VARIANT_IS(x, TokenImplicit)) return 0;
+            else
+                return x.length;
+        },
+        t);
+}
+Maybe<int> maybe_line_num(const Token& t)
+{
+    Maybe<int> result;
+    BEGIN_VISIT_VARIANT_WITH(x)
+    if
+        constexpr(VISITED_VARIANT_IS(x, TokenImplicit) ||
+                  VISITED_VARIANT_IS(x, TokenEof) ||
+                  VISITED_VARIANT_IS(x, ErrorInSourceFile))
+        {
+            result = x.line_num;
+        }
+    else if
+        constexpr(VISITED_VARIANT_IS(x, TokenWspace))
+        {
+            if (!x.inline_())
+                result = x.line_num;
+        }
+
+    END_VISIT_VARIANT(t)
+    return result;
 }
 }

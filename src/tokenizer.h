@@ -65,6 +65,13 @@ struct TokenNumber
     Nonnegative value;
 };
 
+string to_string(const TokenWspace& x);
+string to_string(const TokenImplicit& x);
+string to_string(const TokenEof& x);
+string to_string(const TokenWord& x);
+string to_string(const TokenStringLiteral& x);
+string to_string(const TokenNumber& x);
+
 using Token =
     variant<TokenEof,
             TokenWord,
@@ -75,6 +82,12 @@ using Token =
             ErrorInSourceFile  // error is flattened into Token to avoid
                                // diffult-to-handle 2-level variant
             >;
+
+int col(const Token& t);
+int length(const Token& t);
+Maybe<int> maybe_line_num(const Token& t);
+
+string to_string(const Token& x);
 
 struct TokenFifo
 {
