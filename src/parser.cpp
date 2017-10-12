@@ -13,12 +13,32 @@ namespace maybe {
 
 using AstNodeId = int;
 
-struct AstNode
+struct AstFunction
+{
+    struct Arg
+    {
+        string name;
+        Maybe<AstNodeId> type;
+    };
+    string name;
+    vector<Arg> args;
+};
+
+struct AstExpression
 {
 };
 
+using AstNode = variant<AstFunction, AstExpression>;
+
 struct Ast
 {
+    template <class T, class... Args>
+    AstNodeId add_node(Args&&... args)
+    {
+        AstNodeId id = nodes.size();
+        nodes.emplace_back(in_place_aggr_type<T>, std::forward<Args>(args)...);
+        return id;
+    }
     deque<AstNode> nodes;
 };
 
@@ -60,10 +80,10 @@ struct ParserImpl : Parser
         CHECK(false);
     }
 
-    AstNode parse_expression()
+    OrAstNode parse_expression()
     {
         CHECK(false);
-        return AstNode{};
+        return ParseError{};
     }
 
     variant<OrAstNode, Eof> parse_toplevel_expression()
@@ -160,10 +180,53 @@ struct ParserImpl : Parser
         swallow_pending_token();
     }
 
-    OrAstNode parse_function_argument_in_definition()
+    Either<ParseError, AstFunction::Arg> parse_function_argument_in_definition()
     {
-        CHECK(false);
-        return ParseError{};
+        // identifier [: typename], where
+        // typename ::= identifier+
+
+        string variable_name;
+        VARIANT_GET_IF_BLOCK(TokenWord, peek_next_token())
+        {
+            if (px->kind == TokenWord::identifier) {
+                variable_name = move(px->s);
+                swallow_pending_token();
+            }
+        }
+
+        if (variable_name.empty()) {
+            report_error_on_pending("Expected valid variable name.");
+            return ParseError{};
+        }
+
+        skip_whitespace();
+        bool expect_type = false;
+        VARIANT_GET_IF_BLOCK(TokenWord, peek_next_token())
+        {
+            if (px->kind != TokenWord::separator &&
+                px->s == c_lang_separator_between_varname_and_type) {
+                // then we're done with the variable name
+                return AstFunction::Arg{move(variable_name),
+                                        Nothing};  // create our first AstNode
+            } else {
+                swallow_pending_token();
+                expect_type = true;
+            }
+        }
+
+        if (!expect_type) {
+            report_error_on_pending(
+                fmt::format("Expected '%s' after variable name.",
+                            c_lang_separator_between_varname_and_type));
+            return ParseError{};
+        }
+
+        auto or_expr = parse_expression();
+
+        if (is_left(or_expr))
+            return ParseError{};
+
+        return AstFunction::Arg{move(variable_name), right(or_expr)};
     }
 
     OrAstNode parse_definition_after_plus()
