@@ -16,7 +16,7 @@ bool is_left(const Either<X, Y>& v)
 template <class X, class Y>
 bool is_right(const Either<X, Y>& v)
 {
-    return v.index() == 0;
+    return v.index() == 1;
 }
 
 template <class X, class Y>
@@ -73,4 +73,4 @@ struct ErrorInSourceFile
     int length = 0;
 };
 void report_error(const ErrorInSourceFile& x);
-}
+}  // namespace maybe

@@ -57,12 +57,12 @@ cmakeit () {
     name=$1
     shift
     use_ide_generator=0
-    config_build_type=
+    config_build_type=-DCMAKE_BUILD_TYPE=Release
     if [[ $1 == "--try-use-ide" ]]; then
         shift
         if [[ "$HAS_IDE_GENERATOR" == "1" ]]; then
             use_ide_generator=1
-            config_build_type=-DCMAKE_BUILD_TYPE=Release
+            config_build_type=
         fi
     fi
 
@@ -109,7 +109,7 @@ gitit "https://github.com/tamaskenez/nowide-standalone.git" "nowide-standalone"
 gitit "https://github.com/fmtlib/fmt.git" "fmt"
 gitit "https://github.com/tamaskenez/microlib.git" "microlib"
 gitit "https://github.com/tamaskenez/variant.git" "variant"
-gitit "https://github.com/tamaskenez/Optional.git" "Optional"
+gitit "https://github.com/arkzemi1/Optional.git" "Optional"
 
 # cmakeit "llvm"
 cmakeit "nowide-standalone"
